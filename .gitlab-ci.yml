@@ -1,0 +1,28 @@
+image: "rust:latest"
+
+default:
+  before_script:
+    - rustc --version
+    - cargo --version
+
+stages:
+  - format
+  - lint
+  - test
+
+test-code:
+  stage: test
+  script:
+    - cargo test --features CI
+
+lint-code:
+  stage: lint
+  script:
+    - rustup component add clippy
+    - cargo clippy -- -D warnings
+
+format-code:
+  stage: format
+  script:
+    - rustup component add rustfmt
+    - cargo fmt -- --check

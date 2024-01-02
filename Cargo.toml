@@ -1,0 +1,19 @@
+[package]
+name = "crust"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+clap = {version = "4.4.11", features = ["derive"] }
+regex = "1.10.2"
+ssh2 = "0.9.4"
+text-colorizer = "1.0.0"
+
+[dev-dependencies]
+clippy = "0.0.302"
+mockall = "0.12.1"
+
+[features]
+CI = []
