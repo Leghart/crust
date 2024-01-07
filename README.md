@@ -1,93 +1,77 @@
 # crust
 
+## Run Locally
 
+To run some manual tests, we provided a testing podman environment. Prepared containers have a ssh server configured and you can connect to them from your local machine or directly between them. To setup the environment you need podman installed. The installation process differs between linux distros, so I am only going to show how to do it on debian/ubuntu (others can be found here https://podman.io/docs/installation).
 
-## Getting started
-
-To make it easy for you to get started with GitLab, here's a list of recommended next steps.
-
-Already a pro? Just edit this README.md and make it your own. Want to make it easy? [Use the template at the bottom](#editing-this-readme)!
-
-## Add your files
-
-- [ ] [Create](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#create-a-file) or [upload](https://docs.gitlab.com/ee/user/project/repository/web_editor.html#upload-a-file) files
-- [ ] [Add files using the command line](https://docs.gitlab.com/ee/gitlab-basics/add-file.html#add-a-file-using-the-command-line) or push an existing Git repository with the following command:
-
+Let's start with installing the podman itself.
+```bash
+sudo apt-get update && sudo apt-get -y install podman
 ```
-cd existing_repo
-git remote add origin https://gitlab.com/Leghart/crust.git
-git branch -M main
-git push -uf origin main
+The provided manager script can be used to run containers and retrieve their info. To start our podman containers we can use `start` command. You can use the `--build` flag to automatically prepare the image with ssh server running that is going to be used by our containers. Let's build the image using the manager script and run three containers.
+```bash
+sudo ./podman/manage_podman.py start --build --containers 3
+
+01:21:54 PM   [INFO]   Starting 3 podman containers
+01:21:54 PM   [INFO]   Starting container with image `ubuntu-ssh`
+051a4b971a48514e45346e0df14de24c50b357884b7cb0ab134f7e408283f3c7
+01:21:54 PM   [INFO]   Starting container with image `ubuntu-ssh`
+9cf9512df36cc6972e00751a097a99a4c65f4094492dede6bf910e30fd1cbcfd
+01:21:54 PM   [INFO]   Starting container with image `ubuntu-ssh`
+b4f3a0b79558588f398c092328fbcc860461b4f07a8351efd4057b5de284595b
+01:21:55 PM   [INFO]   Fetching podman container info
+01:21:55 PM   [INFO]   Fetching all podman containers
+01:21:55 PM   [INFO]   Fetching ip address of container `angry_colden`
+01:21:55 PM   [INFO]   Container `angry_colden` - IP: `10.88.0.2`, USER: `test_user`, PASSWD: `1234`
+01:21:55 PM   [INFO]   Fetching ip address of container `unruffled_lehmann`
+01:21:55 PM   [INFO]   Container `unruffled_lehmann` - IP: `10.88.0.3`, USER: `test_user`, PASSWD: `1234`
+01:21:55 PM   [INFO]   Fetching ip address of container `suspicious_lumiere`
+01:21:55 PM   [INFO]   Container `suspicious_lumiere` - IP: `10.88.0.4`, USER: `test_user`, PASSWD: `1234`
 ```
+To verify if the containers are really up and running, we can use
+```bash
+sudo podman ps
 
-## Integrate with your tools
+CONTAINER ID  IMAGE                        COMMAND            CREATED        STATUS            PORTS       NAMES
+051a4b971a48  localhost/ubuntu-ssh:latest  /usr/sbin/sshd -D  3 minutes ago  Up 3 minutes ago              angry_colden
+9cf9512df36c  localhost/ubuntu-ssh:latest  /usr/sbin/sshd -D  3 minutes ago  Up 3 minutes ago              unruffled_lehmann
+b4f3a0b79558  localhost/ubuntu-ssh:latest  /usr/sbin/sshd -D  3 minutes ago  Up 3 minutes ago              suspicious_lumiere
+```
+Knowing that everything works, we can use ip addresses, usernames and passwords present in post-start logs, to connect to the container via ssh.
+```bash
+ssh test_user@10.88.0.2
+```
+If you lost the logs with provided ip addresses, you can always run `info` command to retrieve them again
+```bash
+sudo ./podman/manage_podman.py info
 
-- [ ] [Set up project integrations](https://gitlab.com/Leghart/crust/-/settings/integrations)
+01:29:13 PM   [INFO]   Fetching podman container info
+01:29:13 PM   [INFO]   Fetching all podman containers
+01:29:13 PM   [INFO]   Fetching ip address of container `angry_colden`
+01:29:13 PM   [INFO]   Container `angry_colden` - IP: `10.88.0.2`, USER: `test_user`, PASSWD: `1234`
+01:29:13 PM   [INFO]   Fetching ip address of container `unruffled_lehmann`
+01:29:13 PM   [INFO]   Container `unruffled_lehmann` - IP: `10.88.0.3`, USER: `test_user`, PASSWD: `1234`
+01:29:13 PM   [INFO]   Fetching ip address of container `suspicious_lumiere`
+01:29:13 PM   [INFO]   Container `suspicious_lumiere` - IP: `10.88.0.4`, USER: `test_user`, PASSWD: `1234`
+```
+When you are done testing, all you have to do is run the `stop` command.
+```bash
+sudo ./podman/manage_podman.py stop
 
-## Collaborate with your team
+01:30:05 PM   [INFO]   Stopping podman containers
+01:30:05 PM   [INFO]   Fetching all podman containers
+01:30:05 PM   [INFO]   Stopping container `angry_colden`
+01:30:05 PM   [INFO]   Stopping container `unruffled_lehmann`
+01:30:06 PM   [INFO]   Stopping container `suspicious_lumiere`
+01:30:06 PM   [INFO]   Fetching podman container info
+01:30:06 PM   [INFO]   Fetching all podman containers
+01:30:07 PM   [WARNING]   No running containers found
+```
+If something is not clear, or is not working you can always check the `--help` flag for more context.
+```bash
+sudo ./podman/manage_podman.py --help
+```
+## Authors
 
-- [ ] [Invite team members and collaborators](https://docs.gitlab.com/ee/user/project/members/)
-- [ ] [Create a new merge request](https://docs.gitlab.com/ee/user/project/merge_requests/creating_merge_requests.html)
-- [ ] [Automatically close issues from merge requests](https://docs.gitlab.com/ee/user/project/issues/managing_issues.html#closing-issues-automatically)
-- [ ] [Enable merge request approvals](https://docs.gitlab.com/ee/user/project/merge_requests/approvals/)
-- [ ] [Set auto-merge](https://docs.gitlab.com/ee/user/project/merge_requests/merge_when_pipeline_succeeds.html)
-
-## Test and Deploy
-
-Use the built-in continuous integration in GitLab.
-
-- [ ] [Get started with GitLab CI/CD](https://docs.gitlab.com/ee/ci/quick_start/index.html)
-- [ ] [Analyze your code for known vulnerabilities with Static Application Security Testing (SAST)](https://docs.gitlab.com/ee/user/application_security/sast/)
-- [ ] [Deploy to Kubernetes, Amazon EC2, or Amazon ECS using Auto Deploy](https://docs.gitlab.com/ee/topics/autodevops/requirements.html)
-- [ ] [Use pull-based deployments for improved Kubernetes management](https://docs.gitlab.com/ee/user/clusters/agent/)
-- [ ] [Set up protected environments](https://docs.gitlab.com/ee/ci/environments/protected_environments.html)
-
-***
-
-# Editing this README
-
-When you're ready to make this README your own, just edit this file and use the handy template below (or feel free to structure it however you want - this is just a starting point!). Thanks to [makeareadme.com](https://www.makeareadme.com/) for this template.
-
-## Suggestions for a good README
-
-Every project is different, so consider which of these sections apply to yours. The sections used in the template are suggestions for most open source projects. Also keep in mind that while a README can be too long and detailed, too long is better than too short. If you think your README is too long, consider utilizing another form of documentation rather than cutting out information.
-
-## Name
-Choose a self-explaining name for your project.
-
-## Description
-Let people know what your project can do specifically. Provide context and add a link to any reference visitors might be unfamiliar with. A list of Features or a Background subsection can also be added here. If there are alternatives to your project, this is a good place to list differentiating factors.
-
-## Badges
-On some READMEs, you may see small images that convey metadata, such as whether or not all the tests are passing for the project. You can use Shields to add some to your README. Many services also have instructions for adding a badge.
-
-## Visuals
-Depending on what you are making, it can be a good idea to include screenshots or even a video (you'll frequently see GIFs rather than actual videos). Tools like ttygif can help, but check out Asciinema for a more sophisticated method.
-
-## Installation
-Within a particular ecosystem, there may be a common way of installing things, such as using Yarn, NuGet, or Homebrew. However, consider the possibility that whoever is reading your README is a novice and would like more guidance. Listing specific steps helps remove ambiguity and gets people to using your project as quickly as possible. If it only runs in a specific context like a particular programming language version or operating system or has dependencies that have to be installed manually, also add a Requirements subsection.
-
-## Usage
-Use examples liberally, and show the expected output if you can. It's helpful to have inline the smallest example of usage that you can demonstrate, while providing links to more sophisticated examples if they are too long to reasonably include in the README.
-
-## Support
-Tell people where they can go to for help. It can be any combination of an issue tracker, a chat room, an email address, etc.
-
-## Roadmap
-If you have ideas for releases in the future, it is a good idea to list them in the README.
-
-## Contributing
-State if you are open to contributions and what your requirements are for accepting them.
-
-For people who want to make changes to your project, it's helpful to have some documentation on how to get started. Perhaps there is a script that they should run or some environment variables that they need to set. Make these steps explicit. These instructions could also be useful to your future self.
-
-You can also document commands to lint the code or run tests. These steps help to ensure high code quality and reduce the likelihood that the changes inadvertently break something. Having instructions for running tests is especially helpful if it requires external setup, such as starting a Selenium server for testing in a browser.
-
-## Authors and acknowledgment
-Show your appreciation to those who have contributed to the project.
-
-## License
-For open source projects, say how it is licensed.
-
-## Project status
-If you have run out of energy or time for your project, put a note at the top of the README saying that development has slowed down or stopped completely. Someone may choose to fork your project or volunteer to step in as a maintainer or owner, allowing your project to keep going. You can also make an explicit request for maintainers.
+- [@Leghart](https://gitlab.com/Leghart)
+- [@WiktorNowak](https://gitlab.com/WiktorNowak)
