@@ -6,23 +6,52 @@ default:
     - cargo --version
 
 stages:
-  - format
-  - lint
-  - test
+  - pre_check
+  - build
+  - post_check
+  - deploy
 
 test-code:
-  stage: test
+  stage: pre_check
   script:
     - cargo test --features CI
 
 lint-code:
-  stage: lint
+  stage: pre_check
   script:
     - rustup component add clippy
     - cargo clippy -- -D warnings
 
 format-code:
-  stage: format
+  stage: pre_check
   script:
     - rustup component add rustfmt
     - cargo fmt -- --check
+
+build_package:
+  image: clux/muslrust
+  stage: build
+  needs:
+    - job: test-code
+      artifacts: false
+    - job: format-code
+      artifacts: false
+    - job: lint-code
+      artifacts: false            
+  script:
+    - cargo build --release
+    - strip ${CI_PROJECT_DIR}/target/x86_64-unknown-linux-musl/release/crust
+  artifacts:
+    paths:
+      - ${CI_PROJECT_DIR}/target/x86_64-unknown-linux-musl/release/crust
+
+test-stripped-binary:
+  stage: post_check
+  script:
+    - ${CI_PROJECT_DIR}/target/x86_64-unknown-linux-musl/release/crust -V
+    - if [[ $? -eq 0 ]]; then exit 0; else exit 1; fi
+  needs:
+    - job: build_package
+  artifacts:
+    paths:
+      - ${CI_PROJECT_DIR}/target/x86_64-unknown-linux-musl/release/crust    

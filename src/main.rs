@@ -1,149 +1,94 @@
 use clap::Parser;
-use std::path::PathBuf;
-use std::process::Command;
-use std::sync::{Arc, Mutex};
-use std::thread;
 
 pub mod connection;
 pub mod error;
+pub mod exec;
+pub mod interfaces;
 pub mod machine;
 pub mod parser;
+pub mod tscp;
 
-use machine::base::{Machine, MachineType};
+use machine::base::Machine;
+
 use machine::local::LocalMachine;
 use machine::remote::RemoteMachine;
+use parser::Operation;
+use tscp::{download, upload, Tscp};
+
+use crate::tscp::parser::ValidatedArgs;
 
 use error::{handle_result, CrustError, DefaultExitHandler};
 
+use crate::interfaces::parser::Validation;
+use crate::interfaces::tmpdir::TemporaryDirectory;
+
 /// Entrypoint for crust.
-/// Validates passed arguments and creates a local & remote machines between
-/// which data will be copied.
 fn runner() -> Result<(), CrustError> {
-    let raw_args = parser::RawArgs::parse();
+    let mut args = parser::AppArgs::parse();
+    args.validate()?;
 
-    let args = parser::ValidatedArgs::new(raw_args)?;
+    match args.get_operation() {
+        Operation::Exec(exec_args) => {
+            let machine: Box<dyn Machine> = match &exec_args.remote {
+                Some(_args) => Box::new(RemoteMachine::new(
+                    _args.user.clone().unwrap(),
+                    _args.host.clone().unwrap(),
+                    _args.password.clone(),
+                    _args.pkey.clone(),
+                    _args.port,
+                )),
+                None => Box::new(LocalMachine::new()),
+            };
 
-    let src_machine: Box<dyn Machine> = if args.src_hostname.is_none() {
-        Box::new(LocalMachine::new())
-    } else {
-        Box::new(RemoteMachine::new(
-            args.src_username.unwrap(),
-            args.src_hostname.unwrap(),
-            args.password.clone(),
-            args.pkey.clone(),
-            args.port,
-        ))
-    };
+            let r = machine.exec(&exec_args.cmd)?;
+            println!("{}", r);
+        }
+        Operation::Tscp(ref tscp_args) => {
+            let args = ValidatedArgs::validate_and_create(tscp_args.clone())?;
 
-    let dst_machine: Box<dyn Machine> = if args.dst_hostname.is_none() {
-        Box::new(LocalMachine::new())
-    } else {
-        Box::new(RemoteMachine::new(
-            args.dst_username.unwrap(),
-            args.dst_hostname.unwrap(),
-            args.password.clone(),
-            args.pkey.clone(),
-            args.port,
-        ))
-    };
+            match args.src_hostname.is_none() {
+                true => {
+                    // upload
+                    let mut src_machine = LocalMachine::new();
+                    let mut dst_machine = RemoteMachine::new(
+                        args.dst_username.clone().unwrap(),
+                        args.dst_hostname.clone().unwrap(),
+                        args.password.clone(),
+                        args.pkey.clone(),
+                        args.port,
+                    );
+                    src_machine.create_tmpdir();
+                    dst_machine.create_tmpdir();
 
-    let split_size = match args.chunk_size {
-        Some(v) => v,
-        None => {
-            let threads = args.threads.unwrap() as u64;
-            let cmd = format!("du -b {}", args.src_path);
+                    let split_size = args.get_split_size(&src_machine);
+                    let parts = src_machine.split(split_size, args.src_path.as_str())?;
 
-            let total_size: u64 = src_machine
-                .exec(cmd.as_str())?
-                .split_whitespace()
-                .next()
-                .expect("File size can not be determined")
-                .parse()
-                .expect("File size can not be converted to an integer");
+                    upload::upload(parts, &src_machine, &dst_machine)?;
+                    dst_machine.merge(args.dst_path.as_str())?;
+                }
+                false => {
+                    // download
+                    let mut dst_machine = LocalMachine::new();
+                    let mut src_machine = RemoteMachine::new(
+                        args.src_username.clone().unwrap(),
+                        args.src_hostname.clone().unwrap(),
+                        args.password.clone(),
+                        args.pkey.clone(),
+                        args.port,
+                    );
+                    src_machine.create_tmpdir();
+                    dst_machine.create_tmpdir();
 
-            let chunk_size = total_size / threads;
-            if total_size % threads == 0 {
-                chunk_size
-            } else {
-                chunk_size + 1
+                    let split_size = args.get_split_size(&src_machine);
+                    let parts = src_machine.split(split_size, args.src_path.as_str())?;
+
+                    download::download(parts, &src_machine, &dst_machine)?;
+                    dst_machine.merge(args.dst_path.as_str())?;
+                }
             }
         }
-    };
-
-    let parts = src_machine
-        .split(split_size, args.src_path.as_str())
-        .unwrap();
-    copy(parts, &src_machine, &dst_machine, args.verbose);
-    dst_machine.merge(args.dst_path.as_str())?;
-
-    Ok(())
-}
-
-/// Copied data with threads to destination.
-/// Coping process is always invoked on localmachine (only order of arguments
-/// could changed). After start every thread, waits till end of each to finish
-/// method. In case of error, destructor guarantees cleanup for temporary files.
-#[allow(clippy::borrowed_box)]
-fn copy(
-    chunks: Vec<PathBuf>,
-    src_machine: &Box<dyn Machine>,
-    dst_machine: &Box<dyn Machine>,
-    verbose: bool,
-) {
-    let status_results = Arc::new(Mutex::new(Vec::new()));
-
-    let handles: Vec<_> = chunks
-        .into_iter()
-        .map(|file_path| {
-            let status_results = Arc::clone(&status_results);
-
-            let to: String;
-            let from: String;
-            match src_machine.mtype() {
-                MachineType::LocalMachine => {
-                    //upload
-                    to = format!("{}:{}", dst_machine.ssh_address(), dst_machine.get_tmpdir());
-                    from = file_path.clone().to_string_lossy().to_string();
-                }
-                MachineType::RemoteMachine => {
-                    // download
-                    to = dst_machine.get_tmpdir();
-                    from = format!(
-                        "{}:{}",
-                        src_machine.ssh_address(),
-                        file_path.clone().to_string_lossy()
-                    );
-                }
-                MachineType::AbstractMachine => {
-                    panic!("TODO: to implement");
-                }
-            }
-
-            thread::spawn(move || {
-                let (stdout_verbose, stderr_verbose) = match verbose {
-                    true => (
-                        std::process::Stdio::inherit(),
-                        std::process::Stdio::inherit(),
-                    ),
-                    false => (std::process::Stdio::null(), std::process::Stdio::null()),
-                };
-                let status = Command::new("scp")
-                    .arg(from)
-                    .arg(to)
-                    .stdout(stdout_verbose)
-                    .stderr(stderr_verbose)
-                    .status()
-                    .expect("failed to run scp");
-
-                let mut results = status_results.lock().unwrap();
-                results.push((file_path, status));
-            })
-        })
-        .collect();
-
-    for handle in handles {
-        handle.join().unwrap();
     }
+    Ok(())
 }
 
 fn main() {
