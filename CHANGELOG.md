@@ -16,5 +16,6 @@ All notable changes to this project will be documented in this file.
 
 ### Removed
 - regex crate (replaced with manual checks)
+- tSCP - rework for safe threads is required
 
 [unreleased]: https://gitlab.com/Leghart/crust/-/tree/master

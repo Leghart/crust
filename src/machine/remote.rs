@@ -7,7 +7,6 @@ use crate::connection::{SshConnection, SSH};
 use crate::error::CrustError;
 use crate::exec::Exec;
 use crate::interfaces::tmpdir::TemporaryDirectory;
-use crate::tscp::Tscp;
 
 /// Definition of RemoteMachine with private fields.
 /// - tmpdir: possible path to temporary directory
@@ -104,43 +103,6 @@ impl Exec for RemoteMachine {
             self.ssh.borrow_mut().connect()?;
         }
         self.ssh.borrow().execute(cmd)
-    }
-}
-
-/// Add `tscp` method for RemoteMachine
-impl Tscp for RemoteMachine {
-    fn split(&mut self, size: u64, data: &str) -> Result<Vec<PathBuf>, CrustError> {
-        let cmd = format!("split -b {} {} {}/chunk_", size, data, self.get_tmpdir());
-        self.exec(cmd.as_str())?;
-
-        let cmd = format!("ls {}/chunk_*", self.get_tmpdir());
-        let binding = self.exec(cmd.as_str())?;
-
-        self._string_chunks_to_vec(binding)
-    }
-
-    fn merge(&self, dst: &str) -> Result<(), CrustError> {
-        self.exec(
-            format!(
-                "cat {}/chunk_* > {}",
-                self.tmpdir
-                    .as_ref()
-                    .expect("There is no tmp directory. Call `create_tmpdir` first."),
-                dst
-            )
-            .as_str(),
-        )?;
-        Ok(())
-    }
-
-    #[inline(always)]
-    fn get_address(&self) -> String {
-        self.ssh_address()
-    }
-
-    #[inline(always)]
-    fn get_machine(&self) -> MachineType {
-        self.mtype()
     }
 }
 

@@ -2,11 +2,10 @@ use ssh2::Session;
 
 use crate::exec::Exec;
 use crate::interfaces::tmpdir::TemporaryDirectory;
-use crate::tscp::Tscp;
 
 /// Set of common methods for local and remote machines. It could
 /// be seen as abstract class, which must be overriden by childs.
-pub trait Machine: TemporaryDirectory + Exec + Tscp {
+pub trait Machine: TemporaryDirectory + Exec {
     /// Defines a type of machine.
     /// Possible choices are: LocalMachine, RemoteMachine, AbstractMachine
     fn mtype(&self) -> MachineType;

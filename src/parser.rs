@@ -1,6 +1,5 @@
 use crate::exec::parser::ExecArgs;
 use crate::interfaces::parser::Validation;
-use crate::tscp::parser::TscpArgs;
 use clap::{Args, Parser, Subcommand};
 
 #[derive(Parser, Debug)]
@@ -30,9 +29,6 @@ impl Validation for AppArgs {
 
 #[derive(Debug, Clone, Subcommand)]
 pub enum Operation {
-    /// Copies data between two machines
-    Tscp(TscpArgs),
-
     /// Execute command on machine.
     Exec(ExecArgs),
 }
@@ -42,9 +38,6 @@ impl Validation for Operation {
         match self {
             Operation::Exec(exec_args) => {
                 exec_args.validate()?;
-            }
-            Operation::Tscp(tscp_args) => {
-                tscp_args.validate()?;
             }
         }
         Ok(())

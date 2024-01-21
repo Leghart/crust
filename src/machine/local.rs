@@ -1,12 +1,10 @@
 use super::base::{Machine, MachineType};
-use std::path::PathBuf;
 use std::process::Command;
 
 use crate::interfaces::tmpdir::TemporaryDirectory;
 
 use crate::error::{CrustError, ExitCode};
 use crate::exec::Exec;
-use crate::tscp::Tscp;
 
 /// Definition of LocalMachine with private fields.
 /// - tmpdir: possible path to temporary directory
@@ -90,41 +88,6 @@ impl Exec for LocalMachine {
         }
 
         Ok(String::from_utf8(result.stdout)?)
-    }
-}
-
-/// Add `tscp` method for LocalMachine
-impl Tscp for LocalMachine {
-    fn split(&mut self, size: u64, data: &str) -> Result<Vec<PathBuf>, CrustError> {
-        let cmd = format!("split -b {} {} {}/chunk_", size, data, self.get_tmpdir());
-        self.exec(cmd.as_str())?;
-
-        let cmd = format!("ls {}/chunk_*", self.get_tmpdir());
-        let binding = self.exec(cmd.as_str())?;
-
-        self._string_chunks_to_vec(binding)
-    }
-
-    fn merge(&self, dst: &str) -> Result<(), CrustError> {
-        self.exec(
-            format!(
-                "cat {}/chunk_* > {}",
-                self.tmpdir
-                    .as_ref()
-                    .expect("There is no tmp directory. Call `create_tmpdir` first."),
-                dst
-            )
-            .as_str(),
-        )?;
-        Ok(())
-    }
-
-    fn get_address(&self) -> String {
-        self.ssh_address()
-    }
-
-    fn get_machine(&self) -> MachineType {
-        self.mtype()
     }
 }
 
