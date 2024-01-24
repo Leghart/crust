@@ -1,27 +1,36 @@
 use super::base::{Machine, MachineType};
 use std::process::Command;
 
+use crate::connection::manager::{MachinesManager, MachinesManagerMethods};
 use crate::interfaces::tmpdir::TemporaryDirectory;
 
 use crate::error::{CrustError, ExitCode};
 use crate::exec::Exec;
 
 /// Definition of LocalMachine with private fields.
+/// - id: machine id for MachinesManager
 /// - tmpdir: possible path to temporary directory
 /// - should_remove_tmpdir: determines whether dir
 ///   should be removed on dropping object
 pub struct LocalMachine {
+    id: usize,
     tmpdir: Option<String>,
     should_remove_tmpdir: bool,
 }
 
 /// Set of unique methods for this LocalMachine structure.
 impl LocalMachine {
-    pub fn new() -> Self {
-        Self {
+    pub fn new(manager: &mut MachinesManager) -> Self {
+        let id = manager.generate_id();
+        let machine = Self {
             tmpdir: None,
             should_remove_tmpdir: true,
-        }
+            id,
+        };
+
+        manager.add_machine(Box::new(machine.clone()));
+
+        machine
     }
 }
 
@@ -40,6 +49,10 @@ impl Machine for LocalMachine {
     #[inline(always)]
     fn get_session(&self) -> Option<ssh2::Session> {
         None
+    }
+
+    fn get_id(&self) -> usize {
+        self.id
     }
 }
 
@@ -101,14 +114,6 @@ impl Drop for LocalMachine {
     }
 }
 
-/// Default LocalMachine - never used, but clippy suggests
-/// adding it in case someone else changes something.
-impl Default for LocalMachine {
-    fn default() -> Self {
-        LocalMachine::new()
-    }
-}
-
 /// Custom Clone implementation that guarantees that
 /// copies of the object will not delete the directory.
 impl Clone for LocalMachine {
@@ -116,6 +121,7 @@ impl Clone for LocalMachine {
         LocalMachine {
             tmpdir: self.tmpdir.clone(),
             should_remove_tmpdir: false,
+            id: self.id,
         }
     }
 }

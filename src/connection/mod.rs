@@ -1,3 +1,4 @@
+pub mod manager;
 pub mod parser;
 
 use ssh2::Session;

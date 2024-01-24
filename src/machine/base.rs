@@ -17,6 +17,8 @@ pub trait Machine: TemporaryDirectory + Exec {
     /// Getter for possible session object (only machines where SSH connection
     /// is required). In the case of LocalMachine, it immediately returns None.
     fn get_session(&self) -> Option<Session>;
+
+    fn get_id(&self) -> usize;
 }
 
 /// Enum which allow to recognize dynamicly-created objects (as
@@ -26,4 +28,11 @@ pub enum MachineType {
     AbstractMachine,
     LocalMachine,
     RemoteMachine,
+}
+
+use core::fmt::Debug;
+impl Debug for dyn Machine {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "Machine<{:?}>", self.get_id())
+    }
 }

@@ -3,18 +3,21 @@ use std::path::PathBuf;
 
 use super::base::{Machine, MachineType};
 
+use crate::connection::manager::{MachinesManager, MachinesManagerMethods};
 use crate::connection::{SshConnection, SSH};
 use crate::error::CrustError;
 use crate::exec::Exec;
 use crate::interfaces::tmpdir::TemporaryDirectory;
 
 /// Definition of RemoteMachine with private fields.
+/// - id: machine id for MachinesManager
 /// - tmpdir: possible path to temporary directory
 /// - should_remove_tmpdir: determines whether dir
 ///   should be removed on dropping object
 /// - ssh: reference to `SshConnection` object which
 ///   provides access to remote servers.
 pub struct RemoteMachine {
+    id: usize,
     tmpdir: Option<String>,
     should_remove_tmpdir: bool,
     ssh: RefCell<SshConnection>,
@@ -28,14 +31,20 @@ impl RemoteMachine {
         password: Option<String>,
         pkey: Option<PathBuf>,
         port: u16,
+        manager: &mut MachinesManager,
     ) -> Self {
         let ssh = SshConnection::new(user, host, pkey, password, port);
 
-        Self {
+        let id = manager.generate_id();
+        let machine = Self {
             ssh: RefCell::new(ssh),
             tmpdir: None,
             should_remove_tmpdir: true,
-        }
+            id,
+        };
+        manager.add_machine(Box::new(machine.clone()));
+
+        machine
     }
 
     /// Creates a connection to a remote server on demand.
@@ -58,6 +67,10 @@ impl Machine for RemoteMachine {
 
     fn get_session(&self) -> Option<ssh2::Session> {
         Some(self.ssh.borrow().session().clone())
+    }
+
+    fn get_id(&self) -> usize {
+        self.id
     }
 }
 
@@ -124,6 +137,7 @@ impl Clone for RemoteMachine {
             tmpdir: self.tmpdir.clone(),
             should_remove_tmpdir: false,
             ssh: self.ssh.clone(),
+            id: self.id,
         }
     }
 }
