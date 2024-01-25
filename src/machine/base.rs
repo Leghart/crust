@@ -1,11 +1,13 @@
 use ssh2::Session;
 
+use crate::error::CrustError;
 use crate::exec::Exec;
 use crate::interfaces::tmpdir::TemporaryDirectory;
+use crate::scp::Scp;
 
 /// Set of common methods for local and remote machines. It could
 /// be seen as abstract class, which must be overriden by childs.
-pub trait Machine: TemporaryDirectory + Exec {
+pub trait Machine: TemporaryDirectory + Exec + Scp {
     /// Defines a type of machine.
     /// Possible choices are: LocalMachine, RemoteMachine, AbstractMachine
     fn mtype(&self) -> MachineType;
@@ -18,7 +20,11 @@ pub trait Machine: TemporaryDirectory + Exec {
     /// is required). In the case of LocalMachine, it immediately returns None.
     fn get_session(&self) -> Option<Session>;
 
+    /// Gets a private ID value.
     fn get_id(&self) -> usize;
+
+    /// Required to maintain a common interface.
+    fn connect(&mut self) -> Result<(), CrustError>;
 }
 
 /// Enum which allow to recognize dynamicly-created objects (as

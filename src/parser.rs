@@ -1,5 +1,6 @@
 use crate::exec::parser::ExecArgs;
 use crate::interfaces::parser::Validation;
+use crate::scp::parser::ScpArgs;
 use clap::{Args, Parser, Subcommand};
 
 #[derive(Parser, Debug)]
@@ -31,14 +32,16 @@ impl Validation for AppArgs {
 pub enum Operation {
     /// Execute command on machine.
     Exec(ExecArgs),
+
+    /// Copies data between two machines
+    Scp(ScpArgs),
 }
 
 impl Validation for Operation {
     fn validate(&mut self) -> Result<(), crate::error::CrustError> {
         match self {
-            Operation::Exec(exec_args) => {
-                exec_args.validate()?;
-            }
+            Operation::Exec(args) => args.validate()?,
+            Operation::Scp(args) => args.validate()?,
         }
         Ok(())
     }

@@ -1,4 +1,5 @@
 use super::base::{Machine, MachineType};
+
 use std::process::Command;
 
 use crate::connection::manager::{MachinesManager, MachinesManagerMethods};
@@ -6,6 +7,7 @@ use crate::interfaces::tmpdir::TemporaryDirectory;
 
 use crate::error::{CrustError, ExitCode};
 use crate::exec::Exec;
+use crate::scp::Scp;
 
 /// Definition of LocalMachine with private fields.
 /// - id: machine id for MachinesManager
@@ -54,6 +56,12 @@ impl Machine for LocalMachine {
     fn get_id(&self) -> usize {
         self.id
     }
+
+    ///TODO!: ugly
+    #[inline(always)]
+    fn connect(&mut self) -> Result<(), CrustError> {
+        Ok(())
+    }
 }
 
 /// Implementation of temporary directory handling.
@@ -101,6 +109,17 @@ impl Exec for LocalMachine {
         }
 
         Ok(String::from_utf8(result.stdout)?)
+    }
+}
+
+/// Add 'scp' method for LocalMachine
+impl Scp for LocalMachine {
+    fn get_address(&self) -> String {
+        self.ssh_address()
+    }
+
+    fn get_machine(&self) -> MachineType {
+        self.mtype()
     }
 }
 

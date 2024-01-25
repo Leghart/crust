@@ -8,6 +8,7 @@ use crate::connection::{SshConnection, SSH};
 use crate::error::CrustError;
 use crate::exec::Exec;
 use crate::interfaces::tmpdir::TemporaryDirectory;
+use crate::scp::Scp;
 
 /// Definition of RemoteMachine with private fields.
 /// - id: machine id for MachinesManager
@@ -46,11 +47,6 @@ impl RemoteMachine {
 
         machine
     }
-
-    /// Creates a connection to a remote server on demand.
-    pub fn connect(&mut self) -> Result<(), CrustError> {
-        self.ssh.borrow_mut().connect()
-    }
 }
 
 /// Provides methods from Machine trait to deliver a common interface.
@@ -71,6 +67,10 @@ impl Machine for RemoteMachine {
 
     fn get_id(&self) -> usize {
         self.id
+    }
+
+    fn connect(&mut self) -> Result<(), CrustError> {
+        self.ssh.borrow_mut().connect()
     }
 }
 
@@ -116,6 +116,17 @@ impl Exec for RemoteMachine {
             self.ssh.borrow_mut().connect()?;
         }
         self.ssh.borrow().execute(cmd)
+    }
+}
+
+/// Add 'scp' method for RemoteMachine
+impl Scp for RemoteMachine {
+    fn get_address(&self) -> String {
+        self.ssh_address()
+    }
+
+    fn get_machine(&self) -> MachineType {
+        self.mtype()
     }
 }
 

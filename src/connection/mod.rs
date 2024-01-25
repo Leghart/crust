@@ -8,7 +8,7 @@ use std::path::PathBuf;
 
 use super::error::{CrustError, ExitCode};
 
-/// Delivery required methods for connection to remote server.
+/// Providing required methods for connecting to a remote server
 pub trait SSH {
     fn new(
         username: String,
