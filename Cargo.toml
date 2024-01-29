@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 clap = {version = "4.4.11", features = ["derive"] }
+indicatif = "0.17.7"
 ssh2 = "0.9.4"
 text-colorizer = "1.0.0"
 

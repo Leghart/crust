@@ -86,7 +86,7 @@ fn runner() -> Result<(), CrustError> {
             let mut src_ref = manager.get_machine(src_id).unwrap().borrow_mut();
             let mut dst_ref = manager.get_machine(dst_id).unwrap().borrow_mut();
 
-            scp(&mut src_ref, &mut dst_ref, _from, _to)?;
+            scp(&mut src_ref, &mut dst_ref, _from, _to, args.progress)?;
         }
     }
 

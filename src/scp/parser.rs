@@ -20,9 +20,9 @@ pub struct ScpArgs {
     /// Remote machine's port
     pub port: u16,
 
-    #[clap(short, long, default_value = "false")]
-    /// Disable logs for scp chunk results
-    pub verbose: bool,
+    #[clap(long, default_value = "false")]
+    /// Show progress bar
+    pub progress: bool,
 
     #[clap(long)]
     /// Password to remote server. Shoudn't be used on production (only for tests)
@@ -54,7 +54,7 @@ pub struct ValidatedArgs {
     pub password: Option<String>,
     pub pkey: Option<PathBuf>,
 
-    pub verbose: bool,
+    pub progress: bool,
 }
 
 /// Validates a passed arguments.
@@ -79,7 +79,7 @@ impl ValidatedArgs {
             password: raw_args.password,
             pkey: raw_args.pkey,
             port: raw_args.port,
-            verbose: raw_args.verbose,
+            progress: raw_args.progress,
         })
     }
 
@@ -220,7 +220,7 @@ mod tests {
             src: String::from("local"),
             dst: String::from("local"),
             port: 22,
-            verbose: false,
+            progress: false,
             password: None,
             pkey: None,
         };
@@ -235,7 +235,7 @@ mod tests {
             src: String::from(":remote"),
             dst: String::from(":remote"),
             port: 22,
-            verbose: false,
+            progress: false,
             password: None,
             pkey: None,
         };
@@ -250,7 +250,7 @@ mod tests {
             src: String::from("local"),
             dst: String::from(":remote"),
             port: 22,
-            verbose: false,
+            progress: false,
             password: None,
             pkey: None,
         };
