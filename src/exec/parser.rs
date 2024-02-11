@@ -1,4 +1,4 @@
-use crate::connection::parser::ConnectionArgs;
+use crate::connection::parser::ConnectionArgsTo;
 use crate::error::CrustError;
 use crate::interfaces::parser::Validation;
 use clap::Args;
@@ -9,12 +9,11 @@ pub struct ExecArgs {
     pub cmd: String,
 
     #[clap(flatten)]
-    pub remote: Option<ConnectionArgs>,
+    pub remote: Option<ConnectionArgsTo>,
 
     /// Collect output in real time mode
     #[clap(long, default_value = "false")]
     pub rt: bool,
-    // More options
 }
 
 impl Validation for ExecArgs {

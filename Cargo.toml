@@ -7,9 +7,14 @@ edition = "2021"
 
 [dependencies]
 clap = {version = "4.4.11", features = ["derive"] }
+clap-verbosity-flag = "2.1.2"
 indicatif = "0.17.7"
 ssh2 = "0.9.4"
 text-colorizer = "1.0.0"
+
+[dependencies.uuid]
+version = "1.7.0"
+features = ["v4", "fast-rng", "macro-diagnostics"]
 
 [dev-dependencies]
 clippy = "0.0.302"

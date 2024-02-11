@@ -36,53 +36,55 @@ fn runner() -> Result<(), CrustError> {
     match args.get_operation() {
         Operation::Exec(exec_args) => {
             let machine: Box<dyn Machine> = match &exec_args.remote {
-                Some(_args) => Box::new(RemoteMachine::new(
-                    _args.user.clone().unwrap(),
-                    _args.host.clone().unwrap(),
-                    _args.password.clone(),
-                    _args.pkey.clone(),
-                    _args.port,
-                    &mut manager,
-                )),
+                Some(_args) => {
+                    let (user, host) = _args.split_addr();
+                    Box::new(RemoteMachine::new(
+                        user.to_string(),
+                        host.to_string(),
+                        _args.password_to.clone(),
+                        _args.pkey_to.clone(),
+                        _args.port_to.unwrap(),
+                        &mut manager,
+                    ))
+                }
                 None => Box::new(LocalMachine::new(&mut manager)),
             };
-
             let r = machine.exec(&exec_args.cmd)?;
             println!("{}", r);
         }
         Operation::Scp(scp_args) => {
             let args = ValidatedArgs::validate_and_create(scp_args.clone())?;
 
-            let src_machine: Box<dyn Machine> = if args.src_hostname.is_none() {
+            let src_machine: Box<dyn Machine> = if args.hostname_from.is_none() {
                 Box::new(LocalMachine::new(&mut manager))
             } else {
                 Box::new(RemoteMachine::new(
-                    args.src_username.unwrap(),
-                    args.src_hostname.unwrap(),
-                    args.password.clone(),
-                    args.pkey.clone(),
-                    args.port,
+                    args.username_from.unwrap(),
+                    args.hostname_from.unwrap(),
+                    args.password_from.clone(),
+                    args.pkey_from.clone(),
+                    args.port_from.unwrap(),
                     &mut manager,
                 ))
             };
 
-            let dst_machine: Box<dyn Machine> = if args.dst_hostname.is_none() {
+            let dst_machine: Box<dyn Machine> = if args.hostname_to.is_none() {
                 Box::new(LocalMachine::new(&mut manager))
             } else {
                 Box::new(RemoteMachine::new(
-                    args.dst_username.unwrap(),
-                    args.dst_hostname.unwrap(),
-                    args.password.clone(),
-                    args.pkey.clone(),
-                    args.port,
+                    args.username_to.unwrap(),
+                    args.hostname_to.unwrap(),
+                    args.password_to.clone(),
+                    args.pkey_to.clone(),
+                    args.port_to.unwrap(),
                     &mut manager,
                 ))
             };
+
             let src_id = src_machine.get_id();
             let dst_id = dst_machine.get_id();
-            let _from = PathBuf::from(args.src_path);
-            let _to = PathBuf::from(args.dst_path);
-
+            let _from = PathBuf::from(args.path_from);
+            let _to = PathBuf::from(args.path_to);
             let mut src_ref = manager.get_machine(src_id).unwrap().borrow_mut();
             let mut dst_ref = manager.get_machine(dst_id).unwrap().borrow_mut();
 

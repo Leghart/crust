@@ -33,7 +33,6 @@ pub trait SSH {
     fn connect(&mut self) -> Result<(), CrustError>;
 
     /// Check if `connect()` was invoked and session was created.
-    /// TODO: add checking, if connection is still alive
     fn is_connected(&self) -> bool;
 }
 
@@ -80,7 +79,20 @@ impl SSH for SshConnection {
     }
 
     fn is_connected(&self) -> bool {
-        self.session.is_some()
+        match &self.session {
+            None => false,
+            Some(ses) => match ses.channel_session() {
+                Ok(mut channel) => match channel.exec("") {
+                    Ok(_) => {
+                        let _ = channel.send_eof();
+                        let _ = channel.wait_close();
+                        true
+                    }
+                    Err(_) => false,
+                },
+                Err(_) => false,
+            },
+        }
     }
 
     fn connect(&mut self) -> Result<(), CrustError> {

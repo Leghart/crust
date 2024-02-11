@@ -1,15 +1,17 @@
+use crate::error::CrustError;
+use std::path::PathBuf;
+
 /// Sets of methods required to handle temporary directory -
 /// mainly used in scp-like methods to store a temp files.
 pub trait TemporaryDirectory {
     /// Creates a temporaty dir on self machine.
-    /// TODO!: add protection against multiple calls
-    fn create_tmpdir(&mut self);
+    fn create_tmpdir(&mut self) -> Result<PathBuf, CrustError>;
 
     /// Removes temporary directory.
-    fn remove_tmpdir(&self);
+    fn remove_tmpdir(&self) -> Option<Result<(), CrustError>>;
 
     /// Gets absolute path to existing directory.
-    fn get_tmpdir(&self) -> String;
+    fn get_tmpdir(&self) -> PathBuf;
 
     /// Checks whether temporary directory was created.
     /// TODO!: check if dir still exists (could be removed)
@@ -20,4 +22,8 @@ pub trait TemporaryDirectory {
     /// one of thread removes tmp_dir with results collected from
     /// other threads).
     fn can_be_removed(&self) -> bool;
+
+    /// Creates a file inside temporary directory with
+    /// requested name.
+    fn create_tmpdir_content(&self, filename: &str) -> Result<PathBuf, CrustError>;
 }

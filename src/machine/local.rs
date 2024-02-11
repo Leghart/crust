@@ -1,6 +1,8 @@
 use super::base::{Machine, MachineType};
-
+use std::fs::DirBuilder;
+use std::path::PathBuf;
 use std::process::Command;
+use uuid::Uuid;
 
 use crate::connection::manager::{MachinesManager, MachinesManagerMethods};
 use crate::interfaces::tmpdir::TemporaryDirectory;
@@ -16,7 +18,7 @@ use crate::scp::Scp;
 ///   should be removed on dropping object
 pub struct LocalMachine {
     id: usize,
-    tmpdir: Option<String>,
+    tmpdir: Option<PathBuf>,
     should_remove_tmpdir: bool,
 }
 
@@ -74,25 +76,48 @@ impl TemporaryDirectory for LocalMachine {
         self.tmpdir.is_some()
     }
 
-    fn get_tmpdir(&self) -> String {
+    fn get_tmpdir(&self) -> PathBuf {
         self.tmpdir
             .clone()
             .expect("Temporary directory was not created")
     }
 
-    fn create_tmpdir(&mut self) {
-        self.tmpdir = Some(
-            self.exec("mktemp -d")
-                .expect("Can not create temporary directory")
-                .trim()
-                .to_string(),
-        )
+    fn create_tmpdir(&mut self) -> Result<PathBuf, CrustError> {
+        if self.tmpdir_exists() {
+            return Ok(self.tmpdir.clone().unwrap());
+        }
+
+        let temp_dir_path = PathBuf::from(format!("/tmp/tmp.{}", Uuid::new_v4().as_u128()));
+        DirBuilder::new().create(&temp_dir_path)?;
+
+        self.tmpdir = Some(PathBuf::from(&temp_dir_path));
+        Ok(temp_dir_path)
     }
 
-    fn remove_tmpdir(&self) {
-        if self.can_be_removed() {
-            let _ = self.exec(format!("rm -r {}", self.get_tmpdir()).as_str());
+    fn create_tmpdir_content(&self, filename: &str) -> Result<PathBuf, CrustError> {
+        if !self.tmpdir_exists() {
+            return Err(CrustError {
+                code: ExitCode::Local,
+                message: "You wanted to create tempfile, but you have not created tempdir!"
+                    .to_string(),
+            });
         }
+        let path = PathBuf::from(self.tmpdir.as_ref().unwrap()).join(filename);
+        std::fs::File::create(&path)?;
+        Ok(path)
+    }
+
+    fn remove_tmpdir(&self) -> Option<Result<(), CrustError>> {
+        if self.can_be_removed() && self.tmpdir_exists() {
+            return match std::fs::remove_dir_all(self.tmpdir.as_ref().unwrap()) {
+                Ok(_) => Some(Ok(())),
+                Err(e) => Some(Err(CrustError {
+                    code: ExitCode::Local,
+                    message: e.to_string(),
+                })),
+            };
+        }
+        None
     }
 }
 
@@ -141,6 +166,19 @@ impl Clone for LocalMachine {
             tmpdir: self.tmpdir.clone(),
             should_remove_tmpdir: false,
             id: self.id,
+        }
+    }
+}
+
+/// Default localmachine implementation without connections manager.
+/// The id field is set to a value that is unreachable during normal
+/// use of the application.
+impl Default for LocalMachine {
+    fn default() -> Self {
+        LocalMachine {
+            id: std::usize::MAX,
+            tmpdir: None,
+            should_remove_tmpdir: true,
         }
     }
 }

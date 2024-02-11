@@ -30,6 +30,7 @@ pub trait Machine: TemporaryDirectory + Exec + Scp {
 /// Enum which allow to recognize dynamicly-created objects (as
 /// common interface must be used as references in pointers [Box]).
 /// This could be treated as argument for `isinstance`.
+#[derive(Debug)]
 pub enum MachineType {
     AbstractMachine,
     LocalMachine,

@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use crate::error::CrustError;
 use crate::machine::base::MachineType;
 use crate::{exec::Exec, interfaces::tmpdir::TemporaryDirectory, machine::base::Machine, scp::Scp};
@@ -43,10 +45,18 @@ impl TemporaryDirectory for MockMachine {
     fn tmpdir_exists(&self) -> bool {
         true
     }
-    fn get_tmpdir(&self) -> String {
-        "tmpdir".to_string()
+    fn get_tmpdir(&self) -> PathBuf {
+        PathBuf::from("testdir")
     }
-    fn create_tmpdir(&mut self) {}
+    fn create_tmpdir(&mut self) -> Result<PathBuf, CrustError> {
+        Ok(self.get_tmpdir())
+    }
 
-    fn remove_tmpdir(&self) {}
+    fn remove_tmpdir(&self) -> Option<Result<(), CrustError>> {
+        Some(Ok(()))
+    }
+
+    fn create_tmpdir_content(&self, _filename: &str) -> Result<PathBuf, CrustError> {
+        Ok(PathBuf::from(self.get_tmpdir()).join("file"))
+    }
 }

@@ -1,7 +1,8 @@
 use crate::exec::parser::ExecArgs;
 use crate::interfaces::parser::Validation;
 use crate::scp::parser::ScpArgs;
-use clap::{Args, Parser, Subcommand};
+use clap::{Parser, Subcommand};
+use clap_verbosity_flag::Verbosity;
 
 #[derive(Parser, Debug)]
 #[clap(author = "@Leghart @WiktorNowak", version = "1.0.0", about)]
@@ -10,9 +11,8 @@ pub struct AppArgs {
     #[clap(subcommand)]
     operation: Operation,
 
-    /// Global flags
     #[clap(flatten)]
-    global_opts: GlobalOpts,
+    verbose: Verbosity,
 }
 
 impl AppArgs {
@@ -45,11 +45,4 @@ impl Validation for Operation {
         }
         Ok(())
     }
-}
-
-#[derive(Debug, Args)]
-struct GlobalOpts {
-    #[clap(long, short, global = true)]
-    main_verbose: Option<usize>,
-    //... other global options
 }
