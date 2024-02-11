@@ -72,6 +72,7 @@ impl MachinesManagerMethods for MachinesManager {
         let id = machine.get_id();
         let rc_machine = Rc::new(RefCell::new(machine));
         self.store.insert(id, Rc::clone(&rc_machine));
+        log::debug!("Added {:?} to manager. ID={}", &rc_machine, id);
         id
     }
 
@@ -87,6 +88,7 @@ impl MachinesManagerMethods for MachinesManager {
             });
         }
         self.store.remove(&id);
+        log::debug!("Removed machine with ID={}", id);
         Ok(())
     }
 }

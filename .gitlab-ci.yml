@@ -1,9 +1,23 @@
 image: "rust:latest"
 
-default:
+.docker_job_base: &docker_job_base
+  image: docker:20.10.17
+  services:
+    - name: docker:20.10.17-dind
+      alias: docker
+  tags:
+    - docker
+  dependencies: []
+  variables:
+    DOCKER_TLS_CERTDIR: ""
+    DOCKER_HOST: tcp://docker:2375
+    DOCKER_DRIVER: overlay2
+    DOCKER_BUILDKIT: 1
+    COMPOSE_DOCKER_CLI_BUILD: 1
   before_script:
-    - rustc --version
-    - cargo --version
+    - mkdir -p $HOME/.docker/
+    - docker version
+    - docker compose version
 
 stages:
   - pre_check
@@ -12,21 +26,28 @@ stages:
   - deploy
 
 test-code:
+  <<: *docker_job_base
   stage: pre_check
   script:
-    - cargo test --features CI
+    - docker compose -f ci/docker-compose.yml run tests ./app/ci/run_tests.sh
+  rules:
+    - if: '$CI_PIPELINE_SOURCE != "schedule"'
 
 lint-code:
   stage: pre_check
   script:
     - rustup component add clippy
     - cargo clippy -- -D warnings
+  rules:
+    - if: '$CI_PIPELINE_SOURCE != "schedule"'    
 
 format-code:
   stage: pre_check
   script:
     - rustup component add rustfmt
     - cargo fmt -- --check
+  rules:
+    - if: '$CI_PIPELINE_SOURCE != "schedule"'    
 
 build_package:
   image: clux/muslrust
@@ -44,6 +65,8 @@ build_package:
   artifacts:
     paths:
       - ${CI_PROJECT_DIR}/target/x86_64-unknown-linux-musl/release/crust
+  rules:
+    - if: '$CI_PIPELINE_SOURCE != "schedule"'      
 
 test-stripped-binary:
   stage: post_check
@@ -55,3 +78,5 @@ test-stripped-binary:
   artifacts:
     paths:
       - ${CI_PROJECT_DIR}/target/x86_64-unknown-linux-musl/release/crust    
+  rules:
+    - if: '$CI_PIPELINE_SOURCE != "schedule"'      

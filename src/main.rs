@@ -7,6 +7,7 @@ pub mod connection;
 pub mod error;
 pub mod exec;
 pub mod interfaces;
+pub mod logger;
 pub mod machine;
 #[cfg(test)]
 pub mod mocks;
@@ -25,11 +26,15 @@ use parser::Operation;
 use error::{handle_result, CrustError, DefaultExitHandler};
 
 use crate::interfaces::parser::Validation;
+static LOGGER: logger::Logger = logger::Logger;
 
 /// Entrypoint for crust.
 fn runner() -> Result<(), CrustError> {
     let mut args = parser::AppArgs::parse();
+    logger::init(&args.verbose.log_level_filter())?;
+
     args.validate()?;
+    log::trace!("Validated args: {:?}", args);
 
     let mut manager = connection::manager::MachinesManager::new();
 

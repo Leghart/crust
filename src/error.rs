@@ -111,6 +111,16 @@ impl From<std::string::FromUtf8Error> for CrustError {
     }
 }
 
+/// Handler for logger standard error.
+impl From<log::SetLoggerError> for CrustError {
+    fn from(error: log::SetLoggerError) -> Self {
+        CrustError {
+            code: ExitCode::Parser,
+            message: error.to_string(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

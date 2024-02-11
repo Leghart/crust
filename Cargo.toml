@@ -6,9 +6,11 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+chrono = "0.4.33"
 clap = {version = "4.4.11", features = ["derive"] }
 clap-verbosity-flag = "2.1.2"
 indicatif = "0.17.7"
+log = "0.4.20"
 ssh2 = "0.9.4"
 text-colorizer = "1.0.0"
 
@@ -17,8 +19,11 @@ version = "1.7.0"
 features = ["v4", "fast-rng", "macro-diagnostics"]
 
 [dev-dependencies]
+assert_cmd = "2.0.13"
 clippy = "0.0.302"
 mockall = "0.12.1"
+serial_test = "3.0.0"
+test_utils = { path = "test_utils"}
 
 [features]
 CI = []

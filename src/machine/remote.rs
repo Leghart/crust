@@ -44,8 +44,8 @@ impl RemoteMachine {
             should_remove_tmpdir: true,
             id,
         };
-        manager.add_machine(Box::new(machine.clone()));
 
+        manager.add_machine(Box::new(machine.clone()));
         machine
     }
 }

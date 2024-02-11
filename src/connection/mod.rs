@@ -112,8 +112,10 @@ impl SSH for SshConnection {
         session.handshake()?;
 
         if let Some(pswd) = conn_args.password.as_ref() {
+            log::debug!("Auth method - password");
             session.userauth_password(conn_args.username.as_str(), pswd.as_str())?;
         } else if let Some(pkey) = conn_args.private_key.as_ref() {
+            log::debug!("Auth method - private key");
             session.userauth_pubkey_file(
                 conn_args.username.as_str(),
                 None,
@@ -134,7 +136,7 @@ impl SSH for SshConnection {
                 message: "Authentication failed".to_string(),
             });
         }
-
+        log::debug!("Session to '{:?}' created", self.ssh_address());
         self.session = Some(session);
         Ok(())
     }

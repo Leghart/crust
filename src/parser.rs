@@ -12,7 +12,7 @@ pub struct AppArgs {
     operation: Operation,
 
     #[clap(flatten)]
-    verbose: Verbosity,
+    pub verbose: Verbosity,
 }
 
 impl AppArgs {

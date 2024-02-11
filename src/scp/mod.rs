@@ -25,17 +25,20 @@ pub fn scp(
 ) -> Result<(), CrustError> {
     match (machine_from.get_machine(), machine_to.get_machine()) {
         (MachineType::LocalMachine, MachineType::RemoteMachine) => {
+            log::trace!("Run `upload` from {:?} to {:?}", machine_from, machine_to);
             machine_from.upload(machine_to, &path_from, &path_to, progress)
         }
         (MachineType::RemoteMachine, MachineType::LocalMachine) => {
+            log::trace!("Run `download` from {:?} to {:?}", machine_to, machine_from);
             machine_to.download(machine_from, &path_from, &path_to, progress)
         }
         (MachineType::RemoteMachine, MachineType::RemoteMachine) => {
             let mut local: Box<dyn Machine> = Box::<LocalMachine>::default();
             local.create_tmpdir()?;
             let file_path = local.create_tmpdir_content("tmp_scp")?;
-
+            log::trace!("Run `download` from {:?} to {:?}", machine_from, local);
             local.download(machine_from, &path_from, &file_path, progress)?;
+            log::trace!("Run `upload` from {:?} to {:?}", local, machine_to);
             local.upload(machine_to, &file_path, &path_to, progress)?;
 
             Ok(())
