@@ -5,7 +5,7 @@ use std::process::Command;
 use uuid::Uuid;
 
 use crate::connection::manager::{MachinesManager, MachinesManagerMethods};
-use crate::interfaces::tmpdir::TemporaryDirectory;
+use crate::interfaces::{response::CrustResult, tmpdir::TemporaryDirectory};
 
 use crate::error::{CrustError, ExitCode};
 use crate::exec::Exec;
@@ -17,7 +17,7 @@ use crate::scp::Scp;
 /// - should_remove_tmpdir: determines whether dir
 ///   should be removed on dropping object
 pub struct LocalMachine {
-    id: usize,
+    id: Option<usize>,
     tmpdir: Option<PathBuf>,
     should_remove_tmpdir: bool,
 }
@@ -25,16 +25,26 @@ pub struct LocalMachine {
 /// Set of unique methods for this LocalMachine structure.
 impl LocalMachine {
     pub fn new(manager: &mut MachinesManager) -> Self {
-        let id = manager.generate_id();
         let machine = Self {
             tmpdir: None,
             should_remove_tmpdir: true,
-            id,
+            id: Some(manager.generate_id()),
         };
 
         manager.add_machine(Box::new(machine.clone()));
 
         machine
+    }
+}
+
+/// Default localmachine implementation without connections manager.
+impl Default for LocalMachine {
+    fn default() -> Self {
+        LocalMachine {
+            id: None,
+            tmpdir: None,
+            should_remove_tmpdir: true,
+        }
     }
 }
 
@@ -46,20 +56,14 @@ impl Machine for LocalMachine {
     }
 
     #[inline(always)]
-    fn ssh_address(&self) -> String {
-        "".to_string()
-    }
-
-    #[inline(always)]
     fn get_session(&self) -> Option<ssh2::Session> {
         None
     }
 
-    fn get_id(&self) -> usize {
+    fn get_id(&self) -> Option<usize> {
         self.id
     }
 
-    ///TODO!: ugly
     #[inline(always)]
     fn connect(&mut self) -> Result<(), CrustError> {
         Ok(())
@@ -76,14 +80,15 @@ impl TemporaryDirectory for LocalMachine {
         self.tmpdir.is_some()
     }
 
-    fn get_tmpdir(&self) -> PathBuf {
+    fn get_tmpdir(&self) -> &PathBuf {
         self.tmpdir
-            .clone()
+            .as_ref()
             .expect("Temporary directory was not created")
     }
 
     fn create_tmpdir(&mut self) -> Result<PathBuf, CrustError> {
         if self.tmpdir_exists() {
+            log::warn!("Temp dir for {} already exists", self);
             return Ok(self.tmpdir.clone().unwrap());
         }
 
@@ -107,42 +112,27 @@ impl TemporaryDirectory for LocalMachine {
         Ok(path)
     }
 
-    fn remove_tmpdir(&self) -> Option<Result<(), CrustError>> {
-        if self.can_be_removed() && self.tmpdir_exists() {
-            return match std::fs::remove_dir_all(self.tmpdir.as_ref().unwrap()) {
-                Ok(_) => Some(Ok(())),
-                Err(e) => Some(Err(CrustError {
-                    code: ExitCode::Local,
-                    message: e.to_string(),
-                })),
-            };
-        }
-        None
+    fn remove_tmpdir(&self) -> Result<(), CrustError> {
+        std::fs::remove_dir_all(self.tmpdir.as_ref().unwrap())?;
+        Ok(())
     }
 }
 
 /// Add `execute` method for LocalMachine
 impl Exec for LocalMachine {
-    fn exec(&self, cmd: &str) -> Result<String, CrustError> {
+    fn exec(&self, cmd: &str) -> Result<CrustResult, CrustError> {
         let result = Command::new("sh").arg("-c").arg(cmd).output()?;
 
-        if !result.status.success() {
-            return Err(CrustError {
-                code: ExitCode::Local,
-                message: String::from_utf8(result.stderr)?,
-            });
-        }
-
-        Ok(String::from_utf8(result.stdout)?)
+        Ok(CrustResult::new(
+            &String::from_utf8(result.stdout)?,
+            &String::from_utf8(result.stderr)?,
+            result.status.code().unwrap_or(1),
+        ))
     }
 }
 
 /// Add 'scp' method for LocalMachine
 impl Scp for LocalMachine {
-    fn get_address(&self) -> String {
-        self.ssh_address()
-    }
-
     fn get_machine(&self) -> MachineType {
         self.mtype()
     }
@@ -152,8 +142,8 @@ impl Scp for LocalMachine {
 /// struct leaves scope.
 impl Drop for LocalMachine {
     fn drop(&mut self) {
-        if self.tmpdir_exists() {
-            self.remove_tmpdir();
+        if self.tmpdir_exists() && self.can_be_removed() {
+            let _ = self.remove_tmpdir();
         }
     }
 }
@@ -170,15 +160,13 @@ impl Clone for LocalMachine {
     }
 }
 
-/// Default localmachine implementation without connections manager.
-/// The id field is set to a value that is unreachable during normal
-/// use of the application.
-impl Default for LocalMachine {
-    fn default() -> Self {
-        LocalMachine {
-            id: std::usize::MAX,
-            tmpdir: None,
-            should_remove_tmpdir: true,
-        }
+impl std::fmt::Display for LocalMachine {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let id_str = match self.id {
+            Some(i) => i.to_string(),
+            None => String::from("-"),
+        };
+
+        write!(f, "LocalMachine[{id_str}]")
     }
 }

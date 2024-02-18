@@ -8,10 +8,10 @@ pub trait TemporaryDirectory {
     fn create_tmpdir(&mut self) -> Result<PathBuf, CrustError>;
 
     /// Removes temporary directory.
-    fn remove_tmpdir(&self) -> Option<Result<(), CrustError>>;
+    fn remove_tmpdir(&self) -> Result<(), CrustError>;
 
     /// Gets absolute path to existing directory.
-    fn get_tmpdir(&self) -> PathBuf;
+    fn get_tmpdir(&self) -> &PathBuf;
 
     /// Checks whether temporary directory was created.
     /// TODO!: check if dir still exists (could be removed)

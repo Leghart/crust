@@ -17,5 +17,6 @@ fn test_exec_on_remote() {
     ]);
 
     cmd.assert().success();
-    cmd.assert().stdout("test_user\n");
+    cmd.assert()
+        .stdout("CrustResult { stdout: \"test_user\\n\", stderr: \"\", retcode: 0 }\n");
 }

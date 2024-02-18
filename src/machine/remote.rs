@@ -7,6 +7,7 @@ use crate::connection::manager::{MachinesManager, MachinesManagerMethods};
 use crate::connection::{SshConnection, SSH};
 use crate::error::{CrustError, ExitCode};
 use crate::exec::Exec;
+use crate::interfaces::response::CrustResult;
 use crate::interfaces::tmpdir::TemporaryDirectory;
 use crate::scp::Scp;
 use uuid::Uuid;
@@ -19,7 +20,7 @@ use uuid::Uuid;
 /// - ssh: reference to `SshConnection` object which
 ///   provides access to remote servers.
 pub struct RemoteMachine {
-    id: usize,
+    id: Option<usize>,
     tmpdir: Option<PathBuf>,
     should_remove_tmpdir: bool,
     ssh: RefCell<SshConnection>,
@@ -28,8 +29,8 @@ pub struct RemoteMachine {
 /// Set of unique methods for this RemoteMachine structure.
 impl RemoteMachine {
     pub fn new(
-        user: String,
-        host: String,
+        user: &str,
+        host: &str,
         password: Option<String>,
         pkey: Option<PathBuf>,
         port: u16,
@@ -37,12 +38,11 @@ impl RemoteMachine {
     ) -> Self {
         let ssh = SshConnection::new(user, host, pkey, password, port);
 
-        let id = manager.generate_id();
         let machine = Self {
             ssh: RefCell::new(ssh),
             tmpdir: None,
             should_remove_tmpdir: true,
-            id,
+            id: Some(manager.generate_id()),
         };
 
         manager.add_machine(Box::new(machine.clone()));
@@ -57,16 +57,11 @@ impl Machine for RemoteMachine {
         MachineType::RemoteMachine
     }
 
-    #[inline(always)]
-    fn ssh_address(&self) -> String {
-        self.ssh.borrow().ssh_address()
-    }
-
     fn get_session(&self) -> Option<ssh2::Session> {
         Some(self.ssh.borrow().session().clone())
     }
 
-    fn get_id(&self) -> usize {
+    fn get_id(&self) -> Option<usize> {
         self.id
     }
 
@@ -81,9 +76,9 @@ impl TemporaryDirectory for RemoteMachine {
         self.should_remove_tmpdir
     }
 
-    fn get_tmpdir(&self) -> PathBuf {
+    fn get_tmpdir(&self) -> &PathBuf {
         self.tmpdir
-            .clone()
+            .as_ref()
             .expect("Temporary directory was not created")
     }
 
@@ -121,27 +116,19 @@ impl TemporaryDirectory for RemoteMachine {
         Ok(path)
     }
 
-    fn remove_tmpdir(&self) -> Option<Result<(), CrustError>> {
-        if self.can_be_removed() && self.tmpdir_exists() {
-            let sftp = match self.get_session().unwrap().sftp() {
-                Ok(s) => s,
-                Err(e) => {
-                    return Some(Err(CrustError {
-                        code: ExitCode::Remote,
-                        message: e.to_string(),
-                    }))
-                }
-            };
-
-            return match sftp.rmdir(self.tmpdir.as_ref().unwrap()) {
-                Ok(_) => Some(Ok(())),
-                Err(e) => Some(Err(CrustError {
+    fn remove_tmpdir(&self) -> Result<(), CrustError> {
+        let sftp = match self.get_session().unwrap().sftp() {
+            Ok(s) => s,
+            Err(e) => {
+                return Err(CrustError {
                     code: ExitCode::Remote,
                     message: e.to_string(),
-                })),
-            };
-        }
-        None
+                })
+            }
+        };
+
+        sftp.rmdir(self.tmpdir.as_ref().unwrap())?;
+        Ok(())
     }
 }
 
@@ -150,7 +137,7 @@ impl Exec for RemoteMachine {
     /// Exec command on remote machine. If connection
     /// was not established (or this is a first call), connect
     /// with ssh first.
-    fn exec(&self, cmd: &str) -> Result<String, CrustError> {
+    fn exec(&self, cmd: &str) -> Result<CrustResult, CrustError> {
         if !self.ssh.borrow().is_connected() {
             self.ssh.borrow_mut().connect()?;
         }
@@ -160,10 +147,6 @@ impl Exec for RemoteMachine {
 
 /// Add 'scp' method for RemoteMachine
 impl Scp for RemoteMachine {
-    fn get_address(&self) -> String {
-        self.ssh_address()
-    }
-
     fn get_machine(&self) -> MachineType {
         self.mtype()
     }
@@ -173,8 +156,8 @@ impl Scp for RemoteMachine {
 /// struct leaves scope.
 impl Drop for RemoteMachine {
     fn drop(&mut self) {
-        if self.tmpdir_exists() {
-            self.remove_tmpdir();
+        if self.tmpdir_exists() && self.can_be_removed() {
+            let _ = self.remove_tmpdir();
         }
     }
 }
@@ -189,5 +172,16 @@ impl Clone for RemoteMachine {
             ssh: self.ssh.clone(),
             id: self.id,
         }
+    }
+}
+
+impl std::fmt::Display for RemoteMachine {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let id_str = match self.id {
+            Some(i) => i.to_string(),
+            None => String::from("untracked"),
+        };
+
+        write!(f, "RemoteMachine<{}>[{id_str}]", self.ssh.borrow())
     }
 }

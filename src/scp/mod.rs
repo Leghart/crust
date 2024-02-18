@@ -3,6 +3,7 @@ use ssh2::Channel;
 
 use crate::error::{CrustError, ExitCode};
 use crate::interfaces::progress_bar::ProgressBar;
+use crate::interfaces::response::CrustResult;
 use crate::machine::base::{Machine, MachineType};
 use crate::machine::local::LocalMachine;
 
@@ -22,7 +23,7 @@ pub fn scp(
     path_from: PathBuf,
     path_to: PathBuf,
     progress: bool,
-) -> Result<(), CrustError> {
+) -> Result<CrustResult, CrustError> {
     match (machine_from.get_machine(), machine_to.get_machine()) {
         (MachineType::LocalMachine, MachineType::RemoteMachine) => {
             log::trace!("Run `upload` from {:?} to {:?}", machine_from, machine_to);
@@ -41,7 +42,7 @@ pub fn scp(
             log::trace!("Run `upload` from {:?} to {:?}", local, machine_to);
             local.upload(machine_to, &file_path, &path_to, progress)?;
 
-            Ok(())
+            Ok(CrustResult::default())
         }
         (MachineType::LocalMachine, MachineType::LocalMachine) => Err(CrustError {
             code: ExitCode::Local,
@@ -129,7 +130,7 @@ pub trait Scp {
         from: &Path,
         to: &Path,
         progress: bool,
-    ) -> Result<(), CrustError> {
+    ) -> Result<CrustResult, CrustError> {
         machine.connect()?;
 
         let size: u64 = match std::fs::metadata(from) {
@@ -160,7 +161,7 @@ pub trait Scp {
 
         copy_data(file_to_read, file_to_write, progress_bar);
 
-        Ok(())
+        Ok(CrustResult::default())
     }
 
     /// TODO!: add copy directories
@@ -172,7 +173,7 @@ pub trait Scp {
         from: &Path,
         to: &Path,
         progress: bool,
-    ) -> Result<(), CrustError> {
+    ) -> Result<CrustResult, CrustError> {
         machine.connect()?;
 
         let (channel, stat) = machine.get_session().unwrap().scp_recv(from)?;
@@ -188,13 +189,9 @@ pub trait Scp {
         };
 
         copy_data(file_to_read, file_to_write, progress_bar);
-        Ok(())
+        Ok(CrustResult::default())
     }
 
     /// Getter for machine (common interface provided by Machine trait).
     fn get_machine(&self) -> MachineType;
-
-    /// Getter for string preoresentation of machine. Used in
-    /// connection in ssh2 crate.
-    fn get_address(&self) -> String;
 }

@@ -20,10 +20,7 @@ pub fn exec_on_remote(cmd: &str) -> String {
         .output()
         .unwrap();
 
-    let command = format!(
-        "ssh -o StrictHostKeyChecking=no -i {} {}@{} {}",
-        rsa_ssh, user, host, cmd
-    );
+    let command = format!("ssh -o StrictHostKeyChecking=no -i {rsa_ssh} {user}@{host} {cmd}");
 
     let result = Command::new("sh")
         .arg("-c")

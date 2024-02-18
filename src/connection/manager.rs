@@ -69,7 +69,7 @@ impl MachinesManagerMethods for MachinesManager {
     }
 
     fn add_machine(&mut self, machine: Box<dyn Machine>) -> usize {
-        let id = machine.get_id();
+        let id = machine.get_id().expect("Can not add machine to manager`s store, because machine has been created in single-run mode");
         let rc_machine = Rc::new(RefCell::new(machine));
         self.store.insert(id, Rc::clone(&rc_machine));
         log::debug!("Added {:?} to manager. ID={}", &rc_machine, id);
@@ -84,7 +84,7 @@ impl MachinesManagerMethods for MachinesManager {
         if !self.store.contains_key(&id) {
             return Err(CrustError {
                 code: ExitCode::Internal,
-                message: format!("MachinesManager does not contain Machine<{}>", id),
+                message: format!("MachinesManager does not contain Machine<{id}>"),
             });
         }
         self.store.remove(&id);
@@ -134,8 +134,14 @@ mod tests {
     fn test_add_machines_to_store() {
         let mut manager = MachinesManager::new();
 
-        let machine1 = Box::new(MockMachine { id: 1 });
-        let machine2 = Box::new(MockMachine { id: 2 });
+        let machine1 = Box::new(MockMachine {
+            id: Some(1),
+            tmpdir: None,
+        });
+        let machine2 = Box::new(MockMachine {
+            id: Some(2),
+            tmpdir: None,
+        });
 
         assert_eq!(manager.add_machine(machine1), 1);
         assert_eq!(manager.size(), 1);
@@ -148,8 +154,14 @@ mod tests {
     fn test_remove_machines_from_store() {
         let mut manager = MachinesManager::new();
 
-        let machine1 = Box::new(MockMachine { id: 1 });
-        let machine2 = Box::new(MockMachine { id: 2 });
+        let machine1 = Box::new(MockMachine {
+            id: Some(1),
+            tmpdir: None,
+        });
+        let machine2 = Box::new(MockMachine {
+            id: Some(2),
+            tmpdir: None,
+        });
 
         manager.add_machine(machine1);
         manager.add_machine(machine2);
@@ -164,12 +176,15 @@ mod tests {
     fn test_get_machine_from_store() {
         let mut manager = MachinesManager::new();
 
-        let machine1 = Box::new(MockMachine { id: 1 });
+        let machine1 = Box::new(MockMachine {
+            id: Some(1),
+            tmpdir: None,
+        });
 
         manager.add_machine(machine1);
 
         let machine = manager.get_machine(1).unwrap().borrow();
 
-        assert_eq!(machine.exec("cmd").unwrap(), "ok");
+        assert_eq!(machine.exec("cmd").unwrap().is_success(), true);
     }
 }

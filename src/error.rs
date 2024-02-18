@@ -27,7 +27,7 @@ impl ExitHandler for DefaultExitHandler {
 }
 
 /// Describes possible errors in app.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum ExitCode {
     Remote = 1,
     Local = 2,
@@ -151,7 +151,7 @@ mod tests {
         let crust_error: CrustError = custom_error.into();
 
         assert_eq!(
-            format!("{}", crust_error),
+            format!("{crust_error}"),
             "\u{1b}[31m[Internal]\u{1b}[0m: Custom error".to_string()
         );
     }
@@ -173,7 +173,7 @@ mod tests {
         let crust_error: CrustError = custom_error.into();
 
         assert_eq!(
-            format!("{}", crust_error),
+            format!("{crust_error}"),
             "[Internal]: Custom error".to_string()
         );
     }
@@ -185,7 +185,7 @@ mod tests {
         let crust_error: CrustError = fromstr_error.into();
 
         assert_eq!(
-            format!("{}", crust_error),
+            format!("{crust_error}"),
             "\u{1b}[31m[Internal]\u{1b}[0m: invalid utf-8 sequence of 1 bytes from index 0"
                 .to_string()
         );
@@ -198,7 +198,7 @@ mod tests {
         let crust_error: CrustError = fromstr_error.into();
 
         assert_eq!(
-            format!("{}", crust_error),
+            format!("{crust_error}"),
             "[Internal]: invalid utf-8 sequence of 1 bytes from index 0".to_string()
         );
     }
@@ -210,7 +210,7 @@ mod tests {
         let crust_error: CrustError = io_error.into();
 
         assert_eq!(
-            format!("{}", crust_error),
+            format!("{crust_error}"),
             "\u{1b}[31m[StdError]\u{1b}[0m: Custom IO error".to_string()
         );
     }
@@ -222,7 +222,7 @@ mod tests {
         let crust_error: CrustError = io_error.into();
 
         assert_eq!(
-            format!("{}", crust_error),
+            format!("{crust_error}"),
             "[StdError]: Custom IO error".to_string()
         );
     }

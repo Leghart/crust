@@ -44,8 +44,8 @@ fn runner() -> Result<(), CrustError> {
                 Some(_args) => {
                     let (user, host) = _args.split_addr();
                     Box::new(RemoteMachine::new(
-                        user.to_string(),
-                        host.to_string(),
+                        &user,
+                        &host,
                         _args.password_to.clone(),
                         _args.pkey_to.clone(),
                         _args.port_to.unwrap(),
@@ -64,8 +64,8 @@ fn runner() -> Result<(), CrustError> {
                 Box::new(LocalMachine::new(&mut manager))
             } else {
                 Box::new(RemoteMachine::new(
-                    args.username_from.unwrap(),
-                    args.hostname_from.unwrap(),
+                    &args.username_from.unwrap(),
+                    &args.hostname_from.unwrap(),
                     args.password_from.clone(),
                     args.pkey_from.clone(),
                     args.port_from.unwrap(),
@@ -77,8 +77,8 @@ fn runner() -> Result<(), CrustError> {
                 Box::new(LocalMachine::new(&mut manager))
             } else {
                 Box::new(RemoteMachine::new(
-                    args.username_to.unwrap(),
-                    args.hostname_to.unwrap(),
+                    &args.username_to.unwrap(),
+                    &args.hostname_to.unwrap(),
                     args.password_to.clone(),
                     args.pkey_to.clone(),
                     args.port_to.unwrap(),
@@ -86,8 +86,13 @@ fn runner() -> Result<(), CrustError> {
                 ))
             };
 
-            let src_id = src_machine.get_id();
-            let dst_id = dst_machine.get_id();
+            let src_id = src_machine
+                .get_id()
+                .expect("source machine has been created without connections manager");
+            let dst_id = dst_machine
+                .get_id()
+                .expect("target machine has been created without connections manager");
+
             let _from = PathBuf::from(args.path_from);
             let _to = PathBuf::from(args.path_to);
             let mut src_ref = manager.get_machine(src_id).unwrap().borrow_mut();
