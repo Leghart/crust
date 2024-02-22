@@ -34,7 +34,7 @@ fn runner() -> Result<(), CrustError> {
     logger::init(&args.verbose.log_level_filter())?;
 
     args.validate()?;
-    log::trace!("Validated args: {:?}", args);
+    log::trace!("Validated args: {:#?}", args);
 
     let mut manager = connection::manager::MachinesManager::new();
 
@@ -54,8 +54,14 @@ fn runner() -> Result<(), CrustError> {
                 }
                 None => Box::new(LocalMachine::new(&mut manager)),
             };
-            let r = machine.exec(&exec_args.cmd)?;
-            println!("{}", r);
+
+            match exec_args.rt {
+                true => machine.exec_rt(&exec_args.cmd, exec_args.merge)?,
+                false => {
+                    let r = machine.exec(&exec_args.cmd)?;
+                    println!("{}", r);
+                }
+            };
         }
         Operation::Scp(scp_args) => {
             let args = ValidatedArgs::validate_and_create(scp_args.clone())?;

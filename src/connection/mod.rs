@@ -1,12 +1,12 @@
 pub mod manager;
 pub mod parser;
 
+use crate::exec::BUFF_SIZE;
+use crate::interfaces::response::CrustResult;
 use ssh2::Session;
 use std::io::Read;
 use std::net::TcpStream;
 use std::path::PathBuf;
-
-use crate::interfaces::response::CrustResult;
 
 use super::error::{CrustError, ExitCode};
 
@@ -24,6 +24,9 @@ pub trait SSH {
 
     /// Remote version of `std::process::Command`.
     fn execute(&self, command: &str) -> Result<CrustResult, CrustError>;
+
+    /// Remote version of execute (real-time).
+    fn execute_rt(&self, command: &str, merge_pipes: bool) -> Result<(), CrustError>;
 
     /// Getter for current session
     fn session(&self) -> Session;
@@ -148,7 +151,7 @@ impl SSH for SshConnection {
         let mut channel = self
             .session
             .as_ref()
-            .expect("Call `connect` method first")
+            .expect("Call `.connect()` method first")
             .channel_session()?;
 
         channel.exec(command)?;
@@ -163,6 +166,53 @@ impl SSH for SshConnection {
         channel.wait_close()?;
 
         Ok(CrustResult::new(&stdout, &stderr, retcode))
+    }
+
+    fn execute_rt(&self, command: &str, merge_pipes: bool) -> Result<(), CrustError> {
+        let mut channel = self
+            .session
+            .as_ref()
+            .expect("Call `.connect()` method first")
+            .channel_session()?;
+
+        match merge_pipes {
+            true => {
+                channel.exec(&format!("{command} 2>&1"))?;
+
+                let mut buffer = [0; BUFF_SIZE];
+
+                loop {
+                    let size = channel.read(&mut buffer)?;
+
+                    if size == 0 {
+                        break;
+                    }
+
+                    print!("{}", String::from_utf8(buffer[..size].to_vec())?);
+                }
+            }
+            false => {
+                channel.exec(command)?;
+
+                let mut out_buffer = [0; BUFF_SIZE];
+                let mut err_buffer = [0; BUFF_SIZE];
+
+                loop {
+                    let out_size = channel.read(&mut out_buffer)?;
+                    let err_size = channel.stderr().read(&mut err_buffer)?;
+
+                    if out_size == 0 && err_size == 0 {
+                        break;
+                    }
+
+                    print!("{}", String::from_utf8(out_buffer[..out_size].to_vec())?);
+                    log::error!("{}", String::from_utf8(err_buffer[..err_size].to_vec())?);
+                }
+            }
+        };
+
+        channel.wait_close()?;
+        Ok(())
     }
 }
 
@@ -266,7 +316,7 @@ mod tests {
         );
     }
 
-    #[should_panic(expected = "Call `connect` method first")]
+    #[should_panic(expected = "Call `.connect()` method first")]
     #[test]
     fn test_execute_cmd_without_connection() {
         let ssh = SshConnection {
@@ -288,6 +338,17 @@ mod tests {
         assert_eq!(response.stdout(), "test_user\n");
         assert_eq!(response.stderr(), "");
         assert_eq!(response.retcode(), 0);
+    }
+
+    #[should_panic(expected = "Call `.connect()` method first")]
+    #[test]
+    fn test_execute_rt_cmd_without_connection() {
+        let ssh = SshConnection {
+            session: None,
+            connect_args: None,
+        };
+
+        let _ = ssh.execute_rt("pwd", false);
     }
 
     #[should_panic(expected = "Session was not created")]

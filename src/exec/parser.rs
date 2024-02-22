@@ -14,6 +14,10 @@ pub struct ExecArgs {
     /// Collect output in real time mode
     #[clap(long, default_value = "false")]
     pub rt: bool,
+
+    /// Merge streams (stderr into stdout)
+    #[clap(short, long, default_value = "false")]
+    pub merge: bool,
 }
 
 impl Validation for ExecArgs {

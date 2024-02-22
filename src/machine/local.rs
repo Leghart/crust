@@ -1,7 +1,8 @@
 use super::base::{Machine, MachineType};
 use std::fs::DirBuilder;
+use std::io::{BufRead, BufReader};
 use std::path::PathBuf;
-use std::process::Command;
+use std::process::{Command, Stdio};
 use uuid::Uuid;
 
 use crate::connection::manager::{MachinesManager, MachinesManagerMethods};
@@ -128,6 +129,51 @@ impl Exec for LocalMachine {
             &String::from_utf8(result.stderr)?,
             result.status.code().unwrap_or(1),
         ))
+    }
+
+    fn exec_rt(&self, cmd: &str, merge_pipes: bool) -> Result<(), CrustError> {
+        match merge_pipes {
+            true => {
+                let child = Command::new("sh")
+                    .arg("-c")
+                    .arg(&format!("{cmd} 2>&1"))
+                    .stdout(Stdio::piped())
+                    .spawn()?;
+
+                if let Some(out) = child.stdout {
+                    BufReader::new(out)
+                        .lines()
+                        .map_while(Result::ok)
+                        .for_each(|line| println!("{line}"));
+                } else {
+                    return Err(CrustError {
+                        code: ExitCode::Local,
+                        message: String::from("STDOUT & STDERR are empty"),
+                    });
+                }
+            }
+            false => {
+                let child = Command::new("sh")
+                    .arg("-c")
+                    .arg(cmd)
+                    .stderr(Stdio::piped())
+                    .spawn()?;
+
+                if let Some(e) = child.stderr {
+                    BufReader::new(e)
+                        .lines()
+                        .map_while(Result::ok)
+                        .for_each(|line| log::error!("{line}"));
+                } else {
+                    return Err(CrustError {
+                        code: ExitCode::Local,
+                        message: String::from("STDERR is empty"),
+                    });
+                }
+            }
+        };
+
+        Ok(())
     }
 }
 

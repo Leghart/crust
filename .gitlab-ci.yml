@@ -61,22 +61,8 @@ build_package:
       artifacts: false            
   script:
     - cargo build --release
-    - strip ${CI_PROJECT_DIR}/target/x86_64-unknown-linux-musl/release/crust
   artifacts:
     paths:
       - ${CI_PROJECT_DIR}/target/x86_64-unknown-linux-musl/release/crust
-  rules:
-    - if: '$CI_PIPELINE_SOURCE != "schedule"'      
-
-test-stripped-binary:
-  stage: post_check
-  script:
-    - ${CI_PROJECT_DIR}/target/x86_64-unknown-linux-musl/release/crust -V
-    - if [[ $? -eq 0 ]]; then exit 0; else exit 1; fi
-  needs:
-    - job: build_package
-  artifacts:
-    paths:
-      - ${CI_PROJECT_DIR}/target/x86_64-unknown-linux-musl/release/crust    
   rules:
     - if: '$CI_PIPELINE_SOURCE != "schedule"'      

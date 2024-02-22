@@ -31,6 +31,10 @@ impl Exec for MockMachine {
     fn exec(&self, _: &str) -> Result<CrustResult, CrustError> {
         Ok(CrustResult::default())
     }
+
+    fn exec_rt(&self, cmd: &str, merge_pipes: bool) -> Result<(), CrustError> {
+        Ok(())
+    }
 }
 
 impl Scp for MockMachine {

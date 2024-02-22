@@ -134,14 +134,18 @@ impl TemporaryDirectory for RemoteMachine {
 
 /// Add `execute` method for RemoteMachine
 impl Exec for RemoteMachine {
-    /// Exec command on remote machine. If connection
-    /// was not established (or this is a first call), connect
-    /// with ssh first.
     fn exec(&self, cmd: &str) -> Result<CrustResult, CrustError> {
         if !self.ssh.borrow().is_connected() {
             self.ssh.borrow_mut().connect()?;
         }
         self.ssh.borrow().execute(cmd)
+    }
+
+    fn exec_rt(&self, cmd: &str, merge_pipes: bool) -> Result<(), CrustError> {
+        if !self.ssh.borrow().is_connected() {
+            self.ssh.borrow_mut().connect()?;
+        }
+        self.ssh.borrow().execute_rt(cmd, merge_pipes)
     }
 }
 
