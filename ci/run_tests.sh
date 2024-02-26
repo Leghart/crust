@@ -1,3 +1,3 @@
 #!/bin/sh
 
-cd app/ && cargo test --features CI && [ $? -eq 0 ] || exit 1
+cd app/ && cargo test && [ $? -eq 0 ] || exit 1
