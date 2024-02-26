@@ -1,41 +1,34 @@
-use crate::error::CrustError;
-use crate::error::ExitCode;
-use crate::machine::base::Machine;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::fmt;
 use std::rc::Rc;
 
+use crate::error::CrustError;
+use crate::error::ExitCode;
+use crate::machine::{Machine, MachineID};
+
 pub trait MachinesManagerMethods {
-    /// Getter for last machine's id from struct's store.
-    fn get_last_id(&self) -> Option<usize>;
-
-    /// Create a unique id for machine. For first invoke,
-    /// return 1, otherwise a value is one greater.
-    /// TODO!: will be unsafe in case of multi threaded approach
-    fn generate_id(&self) -> usize {
-        match self.get_last_id() {
-            None => 1,
-            Some(id) => id + 1,
-        }
-    }
-
     /// Adds machine object to internal store (map). If any error related to
     /// adding machine occurred, return Error. Otherwise return ID of new
     /// added element.
-    fn add_machine(&mut self, machine: Box<dyn Machine>) -> usize;
-
-    /// Removes requested machine via passed id.
-    fn remove_machine(&mut self, id: usize) -> Result<(), CrustError>;
-
-    /// Gets a reference to stored machine.
     /// # Example
     /// ```
-    /// let id = 1;
-    /// let machine = manager.get_machine(id).unwrap().borrow_mut();
-    /// machine.exec("pwd")?
-    /// ```
-    fn get_machine(&self, id: usize) -> Option<&Rc<RefCell<Box<dyn Machine>>>>;
+    /// use crate::crust::connection::manager::MachinesManagerMethods;
+    /// use crust::connection::manager::MachinesManager;
+    /// use crust::machine::local::LocalMachine;
+    /// use crust::machine::MachineID;
+    ///
+    /// let mut manager = MachinesManager::default();
+    /// let machine_ref = manager.add_machine(Box::new(LocalMachine::default()));
+    /// machine_ref.borrow().exec("pwd").expect("Command failed");
+    /// ```    
+    fn add_machine(&mut self, machine: Box<dyn Machine>) -> Rc<RefCell<Box<dyn Machine>>>;
+
+    /// Removes requested machine via passed id.
+    fn remove_machine(&mut self, id: MachineID) -> Result<(), CrustError>;
+
+    /// Gets a reference to stored machine.
+    fn get_machine(&self, id: &MachineID) -> Option<&Rc<RefCell<Box<dyn Machine>>>>;
 
     /// Reconnect to target machine. If conenction is single, just open
     /// connection again. In case of more complex examples, go through
@@ -46,8 +39,8 @@ pub trait MachinesManagerMethods {
 }
 
 pub struct MachinesManager {
-    store: HashMap<usize, Rc<RefCell<Box<dyn Machine>>>>,
-    //TODO!: in the future add map for related subconnections
+    store: HashMap<MachineID, Rc<RefCell<Box<dyn Machine>>>>,
+    //TODO: in the future add map for related subconnections
 }
 
 impl MachinesManager {
@@ -64,23 +57,22 @@ impl MachinesManager {
 }
 
 impl MachinesManagerMethods for MachinesManager {
-    fn get_last_id(&self) -> Option<usize> {
-        self.store.keys().cloned().max()
-    }
-
-    fn add_machine(&mut self, machine: Box<dyn Machine>) -> usize {
-        let id = machine.get_id().expect("Can not add machine to manager`s store, because machine has been created in single-run mode");
+    fn add_machine(&mut self, machine: Box<dyn Machine>) -> Rc<RefCell<Box<dyn Machine>>> {
+        let id = machine.get_id().clone();
         let rc_machine = Rc::new(RefCell::new(machine));
-        self.store.insert(id, Rc::clone(&rc_machine));
-        log::debug!("Added {:?} to manager. ID={}", &rc_machine, id);
-        id
+
+        self.store.insert(id.clone(), Rc::clone(&rc_machine));
+
+        log::debug!("Added {:?} to manager", &rc_machine.borrow());
+        log::debug!("Manager's store:{} [size:{}]", self, self.store.len());
+        rc_machine
     }
 
-    fn get_machine(&self, id: usize) -> Option<&Rc<RefCell<Box<dyn Machine>>>> {
-        self.store.get(&id)
+    fn get_machine(&self, id: &MachineID) -> Option<&Rc<RefCell<Box<dyn Machine>>>> {
+        self.store.get(id)
     }
 
-    fn remove_machine(&mut self, id: usize) -> Result<(), CrustError> {
+    fn remove_machine(&mut self, id: MachineID) -> Result<(), CrustError> {
         if !self.store.contains_key(&id) {
             return Err(CrustError {
                 code: ExitCode::Internal,
@@ -88,14 +80,20 @@ impl MachinesManagerMethods for MachinesManager {
             });
         }
         self.store.remove(&id);
-        log::debug!("Removed machine with ID={}", id);
+        log::debug!("Removed machine ({id})");
         Ok(())
     }
 }
 
 impl fmt::Display for MachinesManager {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{:?}", self.store)
+        let entries = self
+            .store
+            .iter()
+            .map(|(k, v)| format!("\n\t{}: {}", k, v.borrow()))
+            .collect::<Vec<_>>()
+            .join(",\n");
+        write!(f, "{{{}\n}}", entries)
     }
 }
 
@@ -112,21 +110,11 @@ mod tests {
     use crate::mocks::machine::MockMachine;
 
     #[test]
-    fn test_generates_id() {
-        let mut manager = MachinesManager::new();
-
-        assert_eq!(manager.generate_id(), 1);
-        assert_eq!(manager.generate_id(), 1);
-        let _ = LocalMachine::new(&mut manager);
-        assert_eq!(manager.generate_id(), 2);
-    }
-
-    #[test]
     fn test_get_size_manager() {
         let mut manager = MachinesManager::new();
 
         assert_eq!(manager.size(), 0);
-        let _ = LocalMachine::new(&mut manager);
+        LocalMachine::get_or_create(&mut manager);
         assert_eq!(manager.size(), 1);
     }
 
@@ -135,18 +123,18 @@ mod tests {
         let mut manager = MachinesManager::new();
 
         let machine1 = Box::new(MockMachine {
-            id: Some(1),
+            id: MachineID::new(Some(String::from("a")), Some(String::from("b")), Some(1)),
             tmpdir: None,
         });
         let machine2 = Box::new(MockMachine {
-            id: Some(2),
+            id: MachineID::default(),
             tmpdir: None,
         });
 
-        assert_eq!(manager.add_machine(machine1), 1);
+        manager.add_machine(machine1);
         assert_eq!(manager.size(), 1);
 
-        assert_eq!(manager.add_machine(machine2), 2);
+        manager.add_machine(machine2);
         assert_eq!(manager.size(), 2);
     }
 
@@ -155,21 +143,21 @@ mod tests {
         let mut manager = MachinesManager::new();
 
         let machine1 = Box::new(MockMachine {
-            id: Some(1),
+            id: MachineID::new(Some(String::from("a")), Some(String::from("b")), Some(1)),
             tmpdir: None,
         });
+
         let machine2 = Box::new(MockMachine {
-            id: Some(2),
+            id: MachineID::default(),
             tmpdir: None,
         });
 
         manager.add_machine(machine1);
         manager.add_machine(machine2);
 
-        manager.remove_machine(1).unwrap();
+        manager.remove_machine(MachineID::default()).unwrap();
 
         assert_eq!(manager.size(), 1);
-        assert_eq!(manager.get_last_id(), Some(2));
     }
 
     #[test]
@@ -177,13 +165,13 @@ mod tests {
         let mut manager = MachinesManager::new();
 
         let machine1 = Box::new(MockMachine {
-            id: Some(1),
+            id: MachineID::default(),
             tmpdir: None,
         });
 
         manager.add_machine(machine1);
 
-        let machine = manager.get_machine(1).unwrap().borrow();
+        let machine = manager.get_machine(&MachineID::default()).unwrap().borrow();
 
         assert_eq!(machine.exec("cmd").unwrap().is_success(), true);
     }

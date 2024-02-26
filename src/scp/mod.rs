@@ -1,46 +1,51 @@
-pub mod parser;
+use std::cell::RefCell;
+use std::fs::File;
+use std::io::Read;
+use std::io::Write;
+use std::path::{Path, PathBuf};
+use std::rc::Rc;
+
 use ssh2::Channel;
 
 use crate::error::{CrustError, ExitCode};
 use crate::interfaces::progress_bar::ProgressBar;
 use crate::interfaces::response::CrustResult;
-use crate::machine::base::{Machine, MachineType};
 use crate::machine::local::LocalMachine;
+use crate::machine::{Machine, MachineType};
 
-use std::io::Read;
-use std::io::Write;
+pub mod parser;
 
-use std::fs::File;
-use std::path::{Path, PathBuf};
-pub const BUF_SIZE: usize = 8192;
+pub const BUF_SIZE: usize = 1024 * 10;
 
 /// Function enabling automatic selection of machines to
 /// perform the requested operation.
 /// TODO?: copying between two machines is done temporarily with the proxy machine
 pub fn scp(
-    machine_from: &mut Box<dyn Machine>,
-    machine_to: &mut Box<dyn Machine>,
+    _machine_from: &Rc<RefCell<Box<dyn Machine>>>,
+    _machine_to: &Rc<RefCell<Box<dyn Machine>>>,
     path_from: PathBuf,
     path_to: PathBuf,
     progress: bool,
 ) -> Result<CrustResult, CrustError> {
+    let mut machine_from = _machine_from.borrow_mut();
+    let mut machine_to = _machine_to.borrow_mut();
     match (machine_from.get_machine(), machine_to.get_machine()) {
         (MachineType::LocalMachine, MachineType::RemoteMachine) => {
-            log::trace!("Run `upload` from {:?} to {:?}", machine_from, machine_to);
-            machine_from.upload(machine_to, &path_from, &path_to, progress)
+            log::trace!("Run `upload` from {} to {}", machine_from, machine_to);
+            machine_from.upload(&mut machine_to, &path_from, &path_to, progress)
         }
         (MachineType::RemoteMachine, MachineType::LocalMachine) => {
-            log::trace!("Run `download` from {:?} to {:?}", machine_to, machine_from);
-            machine_to.download(machine_from, &path_from, &path_to, progress)
+            log::trace!("Run `download` from {} to {}", machine_to, machine_from);
+            machine_to.download(&mut machine_from, &path_from, &path_to, progress)
         }
         (MachineType::RemoteMachine, MachineType::RemoteMachine) => {
             let mut local: Box<dyn Machine> = Box::<LocalMachine>::default();
             local.create_tmpdir()?;
             let file_path = local.create_tmpdir_content("tmp_scp")?;
-            log::trace!("Run `download` from {:?} to {:?}", machine_from, local);
-            local.download(machine_from, &path_from, &file_path, progress)?;
-            log::trace!("Run `upload` from {:?} to {:?}", local, machine_to);
-            local.upload(machine_to, &file_path, &path_to, progress)?;
+            log::trace!("Run `download` from {} to {}", machine_from, local);
+            local.download(&mut machine_from, &path_from, &file_path, progress)?;
+            log::trace!("Run `upload` from {} to {}", local, machine_to);
+            local.upload(&mut machine_to, &file_path, &path_to, progress)?;
 
             Ok(CrustResult::default())
         }
@@ -121,7 +126,7 @@ impl TransferFile {
 }
 
 pub trait Scp {
-    /// TODO!: add copy directories
+    /// TODO: add copy directories
     /// Allows to upload resource from local to remote.
     /// Supports [Box<dyn Machine>] objects and results from MachinesManager as well.
     fn upload(
@@ -164,7 +169,7 @@ pub trait Scp {
         Ok(CrustResult::default())
     }
 
-    /// TODO!: add copy directories
+    /// TODO: add copy directories
     /// Allows to download resource from remote to local.
     /// Supports [Box<dyn Machine>] objects and results from MachinesManager as well.
     fn download(

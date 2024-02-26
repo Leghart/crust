@@ -26,7 +26,7 @@ pub trait SSH {
     fn execute(&self, command: &str) -> Result<CrustResult, CrustError>;
 
     /// Remote version of execute (real-time).
-    fn execute_rt(&self, command: &str, merge_pipes: bool) -> Result<(), CrustError>;
+    fn execute_rt(&self, command: &str, merge_pipes: bool) -> Result<CrustResult, CrustError>;
 
     /// Getter for current session
     fn session(&self) -> Session;
@@ -168,7 +168,7 @@ impl SSH for SshConnection {
         Ok(CrustResult::new(&stdout, &stderr, retcode))
     }
 
-    fn execute_rt(&self, command: &str, merge_pipes: bool) -> Result<(), CrustError> {
+    fn execute_rt(&self, command: &str, merge_pipes: bool) -> Result<CrustResult, CrustError> {
         let mut channel = self
             .session
             .as_ref()
@@ -212,7 +212,7 @@ impl SSH for SshConnection {
         };
 
         channel.wait_close()?;
-        Ok(())
+        Ok(CrustResult::default())
     }
 }
 

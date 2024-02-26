@@ -49,6 +49,13 @@ format-code:
   rules:
     - if: '$CI_PIPELINE_SOURCE != "schedule"'    
 
+todos:
+  stage: pre_check
+  script:
+    - find ${CI_PROJECT_DIR}/src -type f | xargs grep -nH "TODO\!" && exit 1 || exit 0
+  rules:
+    - if: '$CI_PIPELINE_SOURCE != "schedule"'
+
 build_package:
   image: clux/muslrust
   stage: build

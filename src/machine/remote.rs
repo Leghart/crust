@@ -1,7 +1,8 @@
 use std::cell::RefCell;
 use std::path::PathBuf;
+use std::rc::Rc;
 
-use super::base::{Machine, MachineType};
+use uuid::Uuid;
 
 use crate::connection::manager::{MachinesManager, MachinesManagerMethods};
 use crate::connection::{SshConnection, SSH};
@@ -9,8 +10,8 @@ use crate::error::{CrustError, ExitCode};
 use crate::exec::Exec;
 use crate::interfaces::response::CrustResult;
 use crate::interfaces::tmpdir::TemporaryDirectory;
+use crate::machine::{Machine, MachineID, MachineType};
 use crate::scp::Scp;
-use uuid::Uuid;
 
 /// Definition of RemoteMachine with private fields.
 /// - id: machine id for MachinesManager
@@ -20,7 +21,7 @@ use uuid::Uuid;
 /// - ssh: reference to `SshConnection` object which
 ///   provides access to remote servers.
 pub struct RemoteMachine {
-    id: Option<usize>,
+    id: MachineID,
     tmpdir: Option<PathBuf>,
     should_remove_tmpdir: bool,
     ssh: RefCell<SshConnection>,
@@ -28,25 +29,67 @@ pub struct RemoteMachine {
 
 /// Set of unique methods for this RemoteMachine structure.
 impl RemoteMachine {
+    /// Creates a new RemoteMachine. This method should be used only
+    /// in one-scope calls (doesn't have any background utils).    
     pub fn new(
         user: &str,
         host: &str,
         password: Option<String>,
         pkey: Option<PathBuf>,
         port: u16,
-        manager: &mut MachinesManager,
     ) -> Self {
         let ssh = SshConnection::new(user, host, pkey, password, port);
 
-        let machine = Self {
+        Self {
             ssh: RefCell::new(ssh),
             tmpdir: None,
             should_remove_tmpdir: true,
-            id: Some(manager.generate_id()),
-        };
+            id: RemoteMachine::generate_id(user, host, port),
+        }
+    }
 
-        manager.add_machine(Box::new(machine.clone()));
-        machine
+    /// Main method to get/create machine in background mode.
+    /// Generates ID for remote machine from passed connection arguments
+    /// and checks if MachinesManager already stores it. If yes, return
+    /// reference to stored machine. Otherwise create a new one, add to
+    /// manager and return it.
+    pub fn get_or_create(
+        user: String,
+        host: String,
+        password: Option<String>,
+        pkey: Option<PathBuf>,
+        port: u16,
+        manager: &mut MachinesManager,
+    ) -> Rc<RefCell<Box<dyn Machine>>> {
+        let id = RemoteMachine::generate_id(&user, &host, port);
+
+        match manager.get_machine(&id) {
+            Some(machine) => machine.clone(),
+            None => {
+                let ssh = SshConnection::new(&user, &host, pkey, password, port);
+                let machine = Self {
+                    ssh: RefCell::new(ssh),
+                    tmpdir: None,
+                    should_remove_tmpdir: true,
+                    id,
+                };
+                manager.add_machine(Box::new(machine))
+            }
+        }
+    }
+
+    /// Getter for ssh config.
+    pub fn get_ssh(&self) -> &RefCell<SshConnection> {
+        &self.ssh
+    }
+
+    /// Private method to generate id for local machine.
+    fn generate_id(user: &str, host: &str, port: u16) -> MachineID {
+        MachineID::new(
+            Some(String::from(user)),
+            Some(String::from(host)),
+            Some(port),
+        )
     }
 }
 
@@ -61,8 +104,8 @@ impl Machine for RemoteMachine {
         Some(self.ssh.borrow().session().clone())
     }
 
-    fn get_id(&self) -> Option<usize> {
-        self.id
+    fn get_id(&self) -> &MachineID {
+        &self.id
     }
 
     fn connect(&mut self) -> Result<(), CrustError> {
@@ -117,17 +160,8 @@ impl TemporaryDirectory for RemoteMachine {
     }
 
     fn remove_tmpdir(&self) -> Result<(), CrustError> {
-        let sftp = match self.get_session().unwrap().sftp() {
-            Ok(s) => s,
-            Err(e) => {
-                return Err(CrustError {
-                    code: ExitCode::Remote,
-                    message: e.to_string(),
-                })
-            }
-        };
-
-        sftp.rmdir(self.tmpdir.as_ref().unwrap())?;
+        //TODO: Workaround to remove direcotry with content
+        self.exec(&format!("rm -rf {}", self.get_tmpdir().display()))?;
         Ok(())
     }
 }
@@ -141,7 +175,7 @@ impl Exec for RemoteMachine {
         self.ssh.borrow().execute(cmd)
     }
 
-    fn exec_rt(&self, cmd: &str, merge_pipes: bool) -> Result<(), CrustError> {
+    fn exec_rt(&self, cmd: &str, merge_pipes: bool) -> Result<CrustResult, CrustError> {
         if !self.ssh.borrow().is_connected() {
             self.ssh.borrow_mut().connect()?;
         }
@@ -174,18 +208,246 @@ impl Clone for RemoteMachine {
             tmpdir: self.tmpdir.clone(),
             should_remove_tmpdir: false,
             ssh: self.ssh.clone(),
-            id: self.id,
+            id: self.id.clone(),
         }
     }
 }
 
 impl std::fmt::Display for RemoteMachine {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        let id_str = match self.id {
-            Some(i) => i.to_string(),
-            None => String::from("untracked"),
-        };
+        write!(f, "RemoteMachine<{}>", self.ssh.borrow())
+    }
+}
 
-        write!(f, "RemoteMachine<{}>[{id_str}]", self.ssh.borrow())
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serial_test::serial;
+    use test_utils::{exec_on_remote, exists_on_remote};
+
+    fn connect_args() -> (String, String, Option<String>, Option<PathBuf>, u16) {
+        (
+            String::from("test_user"),
+            String::from("10.10.10.10"),
+            Some(String::from("1234")),
+            None,
+            22,
+        )
+    }
+
+    #[serial]
+    #[test]
+    fn test_remotemachine_drop_no_remove_dir() {
+        let (user, host, pass, pkey, port) = connect_args();
+        let mut machine = RemoteMachine::new(&user, &host, pass, pkey, port);
+        let r = machine.connect();
+        assert!(r.is_ok());
+
+        let mut cloned = machine.clone();
+        let path = cloned.create_tmpdir().unwrap();
+
+        std::mem::drop(cloned);
+        assert!(exists_on_remote(path.clone(), true));
+
+        exec_on_remote(&format!("rm -rf {}", path.as_path().to_str().unwrap()));
+    }
+
+    #[serial]
+    #[test]
+    fn test_remotemachine_drop_success() {
+        let (user, host, pass, pkey, port) = connect_args();
+        let mut machine = RemoteMachine::new(&user, &host, pass, pkey, port);
+        let r = machine.connect();
+        assert!(r.is_ok());
+
+        let path = machine.create_tmpdir().unwrap();
+
+        std::mem::drop(machine);
+        assert!(!exists_on_remote(path, true));
+    }
+
+    #[serial]
+    #[test]
+    fn test_exec_remotemachine_failed() {
+        let (user, host, pass, pkey, port) = connect_args();
+        let mut machine = RemoteMachine::new(&user, &host, pass, pkey, port);
+        let r = machine.connect();
+        assert!(r.is_ok());
+
+        let result = machine.exec("abc");
+
+        assert!(result.is_ok());
+        let res = result.unwrap();
+
+        assert_eq!(res.stdout(), "");
+        assert_eq!(res.stderr(), "bash: abc: command not found\n");
+        assert_eq!(res.retcode(), 0); //TODO?: retcode is channel status -> not the same
+    }
+
+    #[serial]
+    #[test]
+    fn test_exec_remotemachine_success() {
+        let (user, host, pass, pkey, port) = connect_args();
+        let mut machine = RemoteMachine::new(&user, &host, pass, pkey, port);
+        let r = machine.connect();
+        assert!(r.is_ok());
+
+        let result = machine.exec("echo 'test'");
+
+        assert!(result.is_ok());
+        let res = result.unwrap();
+
+        assert_eq!(res.stdout(), "test\n");
+        assert_eq!(res.stderr(), "");
+        assert_eq!(res.retcode(), 0);
+    }
+
+    #[serial]
+    #[test]
+    fn test_clone_remotemachine() {
+        let (user, host, pass, pkey, port) = connect_args();
+        let machine = RemoteMachine::new(&user, &host, pass, pkey, port);
+
+        let cloned = machine.clone();
+
+        assert_eq!(machine.get_id(), cloned.get_id());
+        assert!(!cloned.can_be_removed());
+        let ssh_original = machine.get_ssh().borrow();
+        let ssh_cloned = cloned.get_ssh().borrow();
+        assert_eq!(ssh_original.to_string(), ssh_cloned.to_string())
+    }
+
+    // #[serial]
+    // #[test]
+    // fn test_remove_remotemachine_tmpdir() {
+    //     let (user, host, pass, pkey, port) = connect_args();
+    //     let mut machine = RemoteMachine::new(&user, &host, pass, pkey, port);
+    //     let r = machine.connect();
+    //     assert!(r.is_ok());
+
+    //     let path = machine.create_tmpdir().unwrap();
+    //     let result = machine.remove_tmpdir();
+
+    //     assert!(result.is_ok());
+    //     assert_eq!(
+    //         "",
+    //         exec_on_remote(&format!(
+    //             "find /tmp -name {}",
+    //             path.as_path().to_str().unwrap()
+    //         ))
+    //     );
+    // }
+
+    #[serial]
+    #[test]
+    fn test_create_content_for_remotemachine() {
+        let (user, host, pass, pkey, port) = connect_args();
+        let mut machine = RemoteMachine::new(&user, &host, pass, pkey, port);
+        let r = machine.connect();
+        assert!(r.is_ok());
+
+        let _ = machine.create_tmpdir();
+        let result = machine.create_tmpdir_content("abc");
+        assert!(result.is_ok());
+
+        let path = result.ok().unwrap();
+        assert!(exists_on_remote(path, false));
+    }
+
+    #[serial]
+    #[test]
+    fn test_create_content_for_remotemachine_tmpdir_doesnt_exist() {
+        let (user, host, pass, pkey, port) = connect_args();
+        let machine = RemoteMachine::new(&user, &host, pass, pkey, port);
+
+        let result = machine.create_tmpdir_content("abc");
+        assert!(result.is_err());
+
+        let err = result.err().unwrap();
+        assert_eq!(err.code, ExitCode::Remote);
+        assert_eq!(
+            err.message,
+            "You wanted to create tempfile, but you have not created tempdir!"
+        );
+    }
+
+    #[serial]
+    #[test]
+    fn test_create_tmpdir_for_remotemachine() {
+        let (user, host, pass, pkey, port) = connect_args();
+        let mut machine = RemoteMachine::new(&user, &host, pass, pkey, port);
+        let r = machine.connect();
+        assert!(r.is_ok());
+
+        let tmp_dir_result = machine.create_tmpdir();
+        assert!(tmp_dir_result.is_ok());
+        assert!(machine.tmpdir_exists());
+
+        let tmp_dir_path = tmp_dir_result.ok().unwrap();
+        assert!(exists_on_remote(tmp_dir_path, true));
+    }
+
+    #[serial]
+    #[test]
+    fn test_create_remotemachine_without_manager() {
+        let (user, host, pass, pkey, port) = connect_args();
+        let machine = RemoteMachine::new(&user, &host, pass, pkey, port);
+
+        assert_eq!(machine.tmpdir_exists(), false);
+        assert_eq!(
+            machine.get_id(),
+            &MachineID::new(Some(user), Some(host), Some(port))
+        );
+        assert_eq!(machine.can_be_removed(), true);
+        assert_eq!(machine.mtype(), MachineType::RemoteMachine);
+    }
+
+    #[serial]
+    #[test]
+    fn test_create_remotemachine_if_not_present_in_manager_store() {
+        let mut manager = MachinesManager::new();
+        assert_eq!(manager.size(), 0);
+
+        let (user, host, pass, pkey, port) = connect_args();
+        let machine = RemoteMachine::get_or_create(user, host, pass, pkey, port, &mut manager);
+
+        assert_eq!(manager.size(), 1);
+        assert_eq!(machine.borrow().exec("pwd").unwrap().is_success(), true);
+    }
+
+    #[serial]
+    #[test]
+    fn test_get_remotemachine_instead_of_creating_a_new() {
+        let mut manager = MachinesManager::new();
+        assert_eq!(manager.size(), 0);
+
+        RemoteMachine::get_or_create(
+            String::from("a"),
+            String::from("b"),
+            Some(String::from("p")),
+            None,
+            22,
+            &mut manager,
+        );
+        assert_eq!(manager.size(), 1);
+
+        RemoteMachine::get_or_create(
+            String::from("a"),
+            String::from("b"),
+            Some(String::from("p")),
+            None,
+            22,
+            &mut manager,
+        );
+        assert_eq!(manager.size(), 1);
+    }
+
+    #[serial]
+    #[test]
+    fn test_generate_remote_id() {
+        assert_eq!(
+            RemoteMachine::generate_id("a", "b", 1),
+            MachineID::new(Some(String::from("a")), Some(String::from("b")), Some(1))
+        )
     }
 }

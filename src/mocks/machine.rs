@@ -2,17 +2,17 @@ use std::path::PathBuf;
 
 use crate::error::CrustError;
 use crate::interfaces::response::CrustResult;
-use crate::machine::base::MachineType;
-use crate::{exec::Exec, interfaces::tmpdir::TemporaryDirectory, machine::base::Machine, scp::Scp};
+use crate::machine::{MachineID, MachineType};
+use crate::{exec::Exec, interfaces::tmpdir::TemporaryDirectory, machine::Machine, scp::Scp};
 
 pub struct MockMachine {
-    pub id: Option<usize>,
+    pub id: MachineID,
     pub tmpdir: Option<PathBuf>,
 }
 
 impl Machine for MockMachine {
-    fn get_id(&self) -> Option<usize> {
-        self.id
+    fn get_id(&self) -> &MachineID {
+        &self.id
     }
 
     fn get_session(&self) -> Option<ssh2::Session> {
@@ -32,8 +32,8 @@ impl Exec for MockMachine {
         Ok(CrustResult::default())
     }
 
-    fn exec_rt(&self, cmd: &str, merge_pipes: bool) -> Result<(), CrustError> {
-        Ok(())
+    fn exec_rt(&self, _cmd: &str, _merge_pipes: bool) -> Result<CrustResult, CrustError> {
+        Ok(CrustResult::default())
     }
 }
 

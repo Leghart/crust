@@ -4,7 +4,7 @@ use crate::scp::parser::ScpArgs;
 use clap::{Parser, Subcommand};
 use clap_verbosity_flag::Verbosity;
 
-#[derive(Parser, Debug)]
+#[derive(Parser, Debug, Clone)]
 #[clap(author = "@Leghart @WiktorNowak", version = "1.0.0", about)]
 /// Main parser
 pub struct AppArgs {
@@ -13,6 +13,9 @@ pub struct AppArgs {
 
     #[clap(flatten)]
     pub verbose: Verbosity,
+
+    #[clap(short, long, default_value = "false")]
+    pub background: bool,
 }
 
 impl AppArgs {

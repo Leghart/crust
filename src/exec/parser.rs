@@ -1,12 +1,14 @@
+use clap::Args;
+
 use crate::connection::parser::ConnectionArgsTo;
 use crate::error::CrustError;
 use crate::interfaces::parser::Validation;
-use clap::Args;
 
 #[derive(Debug, Clone, Args)]
 pub struct ExecArgs {
     /// Command to execute
-    pub cmd: String,
+    #[clap(value_delimiter = ' ', num_args = 1..)]
+    pub cmd: Option<Vec<String>>,
 
     #[clap(flatten)]
     pub remote: Option<ConnectionArgsTo>,

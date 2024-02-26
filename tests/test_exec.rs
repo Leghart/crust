@@ -18,8 +18,7 @@ fn test_exec_on_remote() {
     ]);
 
     cmd.assert().success();
-    cmd.assert()
-        .stdout("CrustResult { stdout: \"test_user\\n\", stderr: \"\", retcode: 0 }\n");
+    cmd.assert().stdout("test_user\n\n");
 }
 
 #[serial]
@@ -29,8 +28,7 @@ fn test_exec_on_local() {
     cmd.args(&["exec", "echo 'test'"]);
 
     cmd.assert().success();
-    cmd.assert()
-        .stdout("CrustResult { stdout: \"test\\n\", stderr: \"\", retcode: 0 }\n");
+    cmd.assert().stdout("test\n\n");
 }
 
 #[ignore = "toggling"]
@@ -42,7 +40,7 @@ fn test_exec_rt_not_merged_streams_on_local() {
 
     cmd.assert().success();
     cmd.assert()
-        .stdout("STDOUT 1\nSTDOUT 2\nSTDERR 1\nSTDERR 2\n");
+        .stdout("STDOUT 1\nSTDOUT 2\nSTDERR 1\nSTDERR 2\n\n");
 }
 
 #[serial]
@@ -53,7 +51,7 @@ fn test_exec_rt_merged_streams_on_local() {
 
     cmd.assert().success();
     cmd.assert()
-        .stdout("STDERR 1\nSTDOUT 1\nSTDERR 2\nSTDOUT 2\n");
+        .stdout("STDERR 1\nSTDOUT 1\nSTDERR 2\nSTDOUT 2\n\n");
 }
 
 #[cfg(not(feature = "CI"))]
@@ -84,7 +82,7 @@ fn test_exec_rt_not_merged_streams_on_remote() {
 
     cmd.assert().success();
     cmd.assert()
-        .stdout("STDOUT 1\nSTDOUT 2\nSTDERR 1\nSTDERR 2\n\n");
+        .stdout("STDOUT 1\nSTDOUT 2\nSTDERR 1\nSTDERR 2\n\n\n");
 }
 
 #[cfg(not(feature = "CI"))]
@@ -116,5 +114,5 @@ fn test_exec_rt_merged_streams_on_remote() {
 
     cmd.assert().success();
     cmd.assert()
-        .stdout("STDERR 1\nSTDOUT 1\nSTDERR 2\nSTDOUT 2\n");
+        .stdout("STDERR 1\nSTDOUT 1\nSTDERR 2\nSTDOUT 2\n\n");
 }

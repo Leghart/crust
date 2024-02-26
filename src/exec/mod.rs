@@ -15,5 +15,5 @@ pub trait Exec {
     /// For cases where order of logs is important, use `merge_pipes=true` -
     /// both pipes are merged into one (stderr > stdout). Otherwise you will
     /// get stdout as info!, stderr as error!.
-    fn exec_rt(&self, cmd: &str, merge_pipes: bool) -> Result<(), CrustError>;
+    fn exec_rt(&self, cmd: &str, merge_pipes: bool) -> Result<CrustResult, CrustError>;
 }

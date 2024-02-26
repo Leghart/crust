@@ -1,12 +1,14 @@
 use text_colorizer::Colorize;
 
+use crate::interfaces::response::CrustResult;
+
 /// Handles all possible errors from application.
 /// If there was an error, exit app with code from error.
-/// Otherwise return generic success type.
-pub fn handle_result<T, EH: ExitHandler>(result: Result<T, CrustError>) -> T {
+/// Otherwise return exit app with crust result retcode.
+pub fn handle_result<EH: ExitHandler>(result: Result<CrustResult, CrustError>) {
     match result {
-        Err(e) => EH::exit(e),
-        Ok(t) => t,
+        Err(e) => EH::error(e),
+        Ok(t) => EH::success(t),
     }
 }
 
@@ -14,15 +16,25 @@ pub fn handle_result<T, EH: ExitHandler>(result: Result<T, CrustError>) -> T {
 /// Must be a trait structure, to be able mocked
 /// in tests (otherwise it will be always exited from tests)
 pub trait ExitHandler {
-    fn exit(err: CrustError) -> !;
+    fn error(err: CrustError) -> !;
+    fn success(result: CrustResult) -> !;
 }
 
 pub struct DefaultExitHandler {}
 
 impl ExitHandler for DefaultExitHandler {
-    fn exit(err: CrustError) -> ! {
-        eprintln!("{}", err);
+    fn error(err: CrustError) -> ! {
+        eprintln!("{err}");
         std::process::exit(err.code.to_int());
+    }
+
+    fn success(result: CrustResult) -> ! {
+        if result.is_success() {
+            println!("{}", result.stdout().green());
+        } else {
+            println!("{}", result.stderr().red());
+        }
+        std::process::exit(result.retcode());
     }
 }
 
@@ -129,8 +141,12 @@ mod tests {
 
     /// Changes process exit to panic with stderr message.
     impl ExitHandler for MockExitHandler {
-        fn exit(err: CrustError) -> ! {
-            panic!("{}", err);
+        fn error(err: CrustError) -> ! {
+            panic!("{err}");
+        }
+
+        fn success(result: CrustResult) -> ! {
+            panic!("{}", result.retcode());
         }
     }
 
@@ -236,7 +252,7 @@ mod tests {
             message: "test msg".to_string(),
         });
 
-        handle_result::<(), MockExitHandler>(err);
+        handle_result::<MockExitHandler>(err);
     }
 
     #[cfg(feature = "CI")]
@@ -248,14 +264,13 @@ mod tests {
             message: "test msg".to_string(),
         });
 
-        handle_result::<(), MockExitHandler>(err);
+        handle_result::<MockExitHandler>(err);
     }
 
     #[test]
+    #[should_panic(expected = "0")]
     fn test_handle_result_success() {
-        let result: Result<i32, CrustError> = Ok(10);
-        let output = handle_result::<i32, MockExitHandler>(result);
-
-        assert_eq!(output, 10);
+        let result = Ok(CrustResult::default());
+        handle_result::<MockExitHandler>(result);
     }
 }

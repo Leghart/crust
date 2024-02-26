@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::process::Command;
 
 pub fn exec_on_local(cmd: &str) -> String {
@@ -32,4 +33,22 @@ pub fn exec_on_remote(cmd: &str) -> String {
         .as_str()
         .trim()
         .to_string()
+}
+
+pub fn exists_on_remote(path: PathBuf, dir: bool) -> bool {
+    let flag = match dir {
+        true => "-d",
+        false => "-f",
+    };
+    let cmd = format!(
+        "test {flag} {} && echo 'true' || echo 'false'",
+        path.as_path().to_str().unwrap()
+    );
+    let result = exec_on_remote(&cmd);
+
+    if result == "true" {
+        return true;
+    } else {
+        return false;
+    }
 }

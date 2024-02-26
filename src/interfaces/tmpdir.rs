@@ -14,7 +14,7 @@ pub trait TemporaryDirectory {
     fn get_tmpdir(&self) -> &PathBuf;
 
     /// Checks whether temporary directory was created.
-    /// TODO!: check if dir still exists (could be removed)
+    /// TODO: check if dir still exists (could be removed)
     fn tmpdir_exists(&self) -> bool;
 
     /// Determines whether the directory can be removed
