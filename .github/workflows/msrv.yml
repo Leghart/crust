@@ -24,28 +24,30 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: check
+      
+      - name: Check left TODO's
+        run: find ${CI_PROJECT_DIR}/src -type f | xargs grep -nH "TODO\!" && exit 1 || exit 0
 
   test:
-    name: Test Suite
+    name: Run test suite
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        rust:
-          - stable
+    env:
+      COMPOSE_FILE: .ci/docker-compose.yml
+      # DOCKER_USER: ${{ secrets.DOCKER_USER }}
+      # DOCKER_PASS: ${{ secrets.DOCKER_PASS }}
+
     steps:
-      - name: Checkout sources
-        uses: actions/checkout@v2
+    - name: Checkout code
+      uses: actions/checkout@v2
 
-      - name: Install toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: ${{ matrix.rust }}
-          override: true
+    # - name: Login to DockerHub
+    #   run: docker login -u $DOCKER_USER -p $DOCKER_PASS
 
-      - name: Run cargo test
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
+    - name: Build docker images
+      run: docker-compose build
+
+    - name: Run tests
+      run: docker-compose -f ci/docker-compose.yml run tests ./app/ci/run_tests.sh
 
   fmt:
     name: Rustfmt
