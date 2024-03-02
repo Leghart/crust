@@ -1,5 +1,5 @@
 use std::cell::RefCell;
-use std::io::{self, Write};
+use std::io::{self, BufRead, Write};
 use std::path::PathBuf;
 use std::rc::Rc;
 
@@ -140,9 +140,42 @@ fn single_run(
     Ok(result)
 }
 
+/// Read data from standard input (used in manual invoke).
+fn read_stdin() -> String {
+    print!("\n[q to exit]>> ");
+    io::stdout().flush().unwrap();
+
+    let mut input = String::new();
+    io::stdin()
+        .read_line(&mut input)
+        .expect("error: unable to read user input");
+    input
+}
+
+/// Read data from specific FIFO pipe (only in shell invoke)
+fn read_fifo() -> String {
+    let mut input = String::new();
+
+    log::warn!("waiting for fifo...");
+    let file = std::fs::File::open("pipe").unwrap();
+    let mut reader = std::io::BufReader::new(file);
+
+    reader.read_line(&mut input).unwrap();
+    input
+}
+
+/// Allows to run in background mode (store connections).
+/// Supports two ways of invoke: via command line or bash script
+/// manager (should be used in external scripts).
 fn multi_runs(args: AppArgs) {
     let mut manager = MachinesManager::default();
     let mut curr_args = args.clone();
+
+    let bash_env = false;
+    let read_input = match bash_env {
+        true => read_fifo,
+        false => read_stdin,
+    };
     loop {
         let result = single_run(curr_args, Some(&mut manager));
 
@@ -154,13 +187,7 @@ fn multi_runs(args: AppArgs) {
             Err(e) => log::error!("{e}"),
         };
 
-        print!("\n[q to exit]>> ");
-        io::stdout().flush().unwrap();
-
-        let mut input = String::new();
-        io::stdin()
-            .read_line(&mut input)
-            .expect("error: unable to read user input");
+        let input = read_input();
 
         if input == "q\n" {
             break;
