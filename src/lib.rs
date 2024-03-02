@@ -42,19 +42,60 @@ fn single_run(
         None => &mut default_manager,
     };
 
+    //TODO make a new funtion with that
+
     let result = match args.get_operation() {
         Operation::Exec(exec_args) => {
             let machine = match &exec_args.remote {
                 Some(_args) => {
-                    let (user, host) = _args.split_addr();
-                    RemoteMachine::get_or_create(
-                        user,
-                        host,
-                        _args.password_to.clone(),
-                        _args.pkey_to.clone(),
-                        _args.port_to.unwrap(),
-                        manager,
-                    )
+                    match _args.alias_to.clone() {
+                        None => {
+                            log::debug!("Creating local machine - no passed alias");
+                            let (user, host) = _args.split_addr();
+                            RemoteMachine::get_or_create(
+                                user,
+                                host,
+                                _args.password_to.clone(),
+                                _args.pkey_to.clone(),
+                                _args.port_to.unwrap(),
+                                _args.alias_to.clone(),
+                                manager,
+                            )
+                        }
+                        Some(al) => {
+                            log::debug!("passed alias, trying get");
+                            let mach = RemoteMachine::get(&al, manager);
+                            match mach {
+                                Some(m) => m,
+                                None => {
+                                    log::debug!("Not found machine with alias '{}' - trying create a new one", al);
+                                    if _args.addr_to.is_some()
+                                        && (_args.password_to.is_some() || _args.pkey_to.is_some())
+                                    {
+                                        log::debug!("Machine could be created - creating");
+                                        let (user, host) = _args.split_addr();
+                                        RemoteMachine::get_or_create(
+                                            user,
+                                            host,
+                                            _args.password_to.clone(),
+                                            _args.pkey_to.clone(),
+                                            _args.port_to.unwrap(),
+                                            _args.alias_to.clone(),
+                                            manager,
+                                        )
+                                    } else {
+                                        log::error!("Passed alias without conn args but this is a first invoke");
+                                        return Err(CrustError {
+                                            code: error::ExitCode::Internal,
+                                            message: format!(
+                                                "There is no registered machine with alias '{al}'"
+                                            ),
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
                 None => LocalMachine::get_or_create(manager),
             };
@@ -77,6 +118,7 @@ fn single_run(
                     args.password_from.clone(),
                     args.pkey_from.clone(),
                     args.port_from.unwrap(),
+                    args.alias_from.clone(),
                     manager,
                 )
             };
@@ -90,6 +132,7 @@ fn single_run(
                     args.password_to.clone(),
                     args.pkey_to.clone(),
                     args.port_to.unwrap(),
+                    args.alias_to.clone(),
                     manager,
                 )
             };

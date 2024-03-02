@@ -44,13 +44,14 @@ impl RemoteMachine {
             ssh: RefCell::new(ssh),
             tmpdir: None,
             should_remove_tmpdir: true,
-            id: RemoteMachine::generate_id(user, host, port),
+            id: RemoteMachine::generate_default_id(user, host, port),
         }
     }
 
     /// Main method to get/create machine in background mode.
-    /// Generates ID for remote machine from passed connection arguments
-    /// and checks if MachinesManager already stores it. If yes, return
+    /// Generates ID for remote machine from passed connection arguments(
+    /// if 'alias parameter is None - otherwise ID is this alias) and
+    /// checks if MachinesManager already stores it. If yes, return
     /// reference to stored machine. Otherwise create a new one, add to
     /// manager and return it.
     pub fn get_or_create(
@@ -59,9 +60,13 @@ impl RemoteMachine {
         password: Option<String>,
         pkey: Option<PathBuf>,
         port: u16,
+        alias: Option<String>,
         manager: &mut MachinesManager,
     ) -> Rc<RefCell<Box<dyn Machine>>> {
-        let id = RemoteMachine::generate_id(&user, &host, port);
+        let id = match alias {
+            Some(_alias) => RemoteMachine::generate_custom_id(&_alias),
+            None => RemoteMachine::generate_default_id(&user, &host, port),
+        };
 
         match manager.get_machine(&id) {
             Some(machine) => machine.clone(),
@@ -78,18 +83,38 @@ impl RemoteMachine {
         }
     }
 
+    /// Tries to get a machine from manager by machine alias.
+    /// In case when passed alias is not registered - return None, otherwise
+    /// returns reference to machine from manager.
+    pub fn get(
+        alias: &str,
+        manager: &mut MachinesManager,
+    ) -> Option<Rc<RefCell<Box<dyn Machine>>>> {
+        let id = RemoteMachine::generate_custom_id(alias);
+
+        match manager.get_machine(&id) {
+            Some(machine) => Some(machine.clone()),
+            None => None,
+        }
+    }
+
     /// Getter for ssh config.
     pub fn get_ssh(&self) -> &RefCell<SshConnection> {
         &self.ssh
     }
 
-    /// Private method to generate id for local machine.
-    fn generate_id(user: &str, host: &str, port: u16) -> MachineID {
-        MachineID::new(
+    /// Private method to generate id for remote machine.
+    fn generate_default_id(user: &str, host: &str, port: u16) -> MachineID {
+        MachineID::DefaultMachineID(
             Some(String::from(user)),
             Some(String::from(host)),
             Some(port),
         )
+    }
+
+    /// Private method to generate id for remote machine.
+    fn generate_custom_id(alias: &str) -> MachineID {
+        MachineID::CustomID(alias.to_string())
     }
 }
 
@@ -409,7 +434,8 @@ mod tests {
         assert_eq!(manager.size(), 0);
 
         let (user, host, pass, pkey, port) = connect_args();
-        let machine = RemoteMachine::get_or_create(user, host, pass, pkey, port, &mut manager);
+        let machine =
+            RemoteMachine::get_or_create(user, host, pass, pkey, port, None, &mut manager);
 
         assert_eq!(manager.size(), 1);
         assert_eq!(machine.borrow().exec("pwd").unwrap().is_success(), true);
@@ -427,6 +453,7 @@ mod tests {
             Some(String::from("p")),
             None,
             22,
+            None,
             &mut manager,
         );
         assert_eq!(manager.size(), 1);
@@ -437,6 +464,7 @@ mod tests {
             Some(String::from("p")),
             None,
             22,
+            None,
             &mut manager,
         );
         assert_eq!(manager.size(), 1);
@@ -446,7 +474,7 @@ mod tests {
     #[test]
     fn test_generate_remote_id() {
         assert_eq!(
-            RemoteMachine::generate_id("a", "b", 1),
+            RemoteMachine::generate_default_id("a", "b", 1),
             MachineID::new(Some(String::from("a")), Some(String::from("b")), Some(1))
         )
     }

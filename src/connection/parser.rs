@@ -22,6 +22,10 @@ pub struct ConnectionArgsTo {
     #[clap(long)]
     /// Path to private ssh-key to remote server
     pub pkey_to: Option<PathBuf>,
+
+    #[clap(long)]
+    /// Alias for remote machine to use instead of all passing all args
+    pub alias_to: Option<String>,
 }
 
 impl ConnectionArgsTo {
@@ -34,19 +38,25 @@ impl ConnectionArgsTo {
 
 impl Validation for ConnectionArgsTo {
     fn validate(&mut self) -> Result<(), CrustError> {
+        // TODO: handle alias validation
+
+        if self.alias_to.is_some() {
+            return Ok(());
+        }
+
+        if self.password_to.is_none() && self.pkey_to.is_none() {
+            return Err(CrustError {
+                code: ExitCode::Parser,
+                message: "Neither password nor pkey provided".to_string(),
+            });
+        }
+
         if let Some(addr) = &self.addr_to {
             let parts = addr.split('@').collect::<Vec<&str>>();
             if parts.len() != 2 || parts[0].is_empty() || parts[1].is_empty() {
                 return Err(CrustError {
                     code: ExitCode::Parser,
                     message: "Invalid address pattern. Use <user>@<host>".to_string(),
-                });
-            }
-
-            if self.password_to.is_none() && self.pkey_to.is_none() {
-                return Err(CrustError {
-                    code: ExitCode::Parser,
-                    message: "Neither password nor pkey provided".to_string(),
                 });
             }
         }
@@ -75,6 +85,10 @@ pub struct ConnectionArgsFrom {
     #[clap(long)]
     /// Path to private ssh-key to source remote server
     pub pkey_from: Option<PathBuf>,
+
+    #[clap(long)]
+    /// Alias for remote machine to use instead of all passing all args
+    pub alias_from: Option<String>,
 }
 
 impl ConnectionArgsFrom {

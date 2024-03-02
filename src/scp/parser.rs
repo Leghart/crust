@@ -75,6 +75,7 @@ pub struct ValidatedArgs {
     pub port_from: Option<u16>,
     pub password_from: Option<String>,
     pub pkey_from: Option<PathBuf>,
+    pub alias_from: Option<String>,
 
     pub path_to: String,
     pub username_to: Option<String>,
@@ -82,6 +83,7 @@ pub struct ValidatedArgs {
     pub port_to: Option<u16>,
     pub password_to: Option<String>,
     pub pkey_to: Option<PathBuf>,
+    pub alias_to: Option<String>,
 
     pub progress: bool,
 }
@@ -92,13 +94,16 @@ pub struct ValidatedArgs {
 /// The problem is, that self reference does not exist yet.
 impl ValidatedArgs {
     pub fn validate_and_create(raw_args: ScpArgs) -> Result<Self, CrustError> {
-        let port_from: Option<u16>;
-        let pkey_from: Option<PathBuf>;
-        let password_from: Option<String>;
-        let username_from: Option<String>;
-        let hostname_from: Option<String>;
-        match raw_args.src.remote_params {
-            Some(args_from) => {
+        let mut port_from: Option<u16> = None;
+        let mut pkey_from: Option<PathBuf> = None;
+        let mut password_from: Option<String> = None;
+        let mut username_from: Option<String> = None;
+        let mut hostname_from: Option<String> = None;
+        let mut alias_from: Option<String> = None;
+        if let Some(args_from) = raw_args.src.remote_params {
+            if let Some(alias) = args_from.alias_from {
+                alias_from = Some(alias);
+            } else {
                 let (_u, _h) = args_from.split_addr();
                 username_from = Some(_u);
                 hostname_from = Some(_h);
@@ -106,35 +111,24 @@ impl ValidatedArgs {
                 pkey_from = args_from.pkey_from;
                 password_from = args_from.password_from;
             }
-            _ => {
-                username_from = None;
-                hostname_from = None;
-                port_from = None;
-                pkey_from = None;
-                password_from = None;
-            }
         }
 
-        let port_to: Option<u16>;
-        let pkey_to: Option<PathBuf>;
-        let password_to: Option<String>;
-        let username_to: Option<String>;
-        let hostname_to: Option<String>;
-        match raw_args.dst.remote_params {
-            Some(args_to) => {
+        let mut port_to: Option<u16> = None;
+        let mut pkey_to: Option<PathBuf> = None;
+        let mut password_to: Option<String> = None;
+        let mut username_to: Option<String> = None;
+        let mut hostname_to: Option<String> = None;
+        let mut alias_to: Option<String> = None;
+        if let Some(args_to) = raw_args.dst.remote_params {
+            if let Some(alias) = args_to.alias_to {
+                alias_to = Some(alias);
+            } else {
                 let (_u, _h) = args_to.split_addr();
                 username_to = Some(_u);
                 hostname_to = Some(_h);
                 port_to = args_to.port_to;
                 pkey_to = args_to.pkey_to;
                 password_to = args_to.password_to;
-            }
-            _ => {
-                username_to = None;
-                hostname_to = None;
-                port_to = None;
-                pkey_to = None;
-                password_to = None;
             }
         }
 
@@ -145,12 +139,14 @@ impl ValidatedArgs {
             port_from,
             password_from,
             pkey_from,
+            alias_from,
             path_to: raw_args.dst.path_to,
             username_to,
             hostname_to,
             port_to,
             password_to,
             pkey_to,
+            alias_to,
             progress: raw_args.progress,
         })
     }
