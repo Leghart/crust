@@ -18,6 +18,7 @@ fn test_extern_usage_background_connections() {
             Some(String::from("1234")),
             None,
             22,
+            None,
             &mut manager,
         );
         id = remote.borrow().get_id().clone();
@@ -33,6 +34,27 @@ fn test_extern_usage_background_connections() {
     let remote_ref = manager.get_machine(&id).unwrap().borrow();
     assert_eq!(
         remote_ref.exec("pwd").unwrap().stdout(),
+        "/home/test_user\n"
+    );
+}
+
+#[test]
+fn test_extern_usage_background_connections_use_alias() {
+    let mut manager = MachinesManager::default();
+
+    let _ = RemoteMachine::get_or_create(
+        String::from("test_user"),
+        String::from("10.10.10.10"),
+        Some(String::from("1234")),
+        None,
+        22,
+        Some(String::from("alias")),
+        &mut manager,
+    );
+
+    let remote_ref = RemoteMachine::get("alias", &mut manager).unwrap();
+    assert_eq!(
+        remote_ref.borrow().exec("pwd").unwrap().stdout(),
         "/home/test_user\n"
     );
 }
