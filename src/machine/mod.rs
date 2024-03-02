@@ -31,30 +31,26 @@ pub trait Machine: TemporaryDirectory + Exec + Scp + Display {
     fn connect(&mut self) -> Result<(), CrustError>;
 }
 
+/// Hashable enum represents a machine ID. There are two options to make
+/// an ID:
+/// - [defualt] auto-create by arguments represeting machine - user, host and port
+/// - custom by passed alias to machine.
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Clone)]
 pub enum MachineID {
-    DefaultMachineID(Option<String>, Option<String>, Option<u16>),
-    CustomID(String),
+    Default(Option<String>, Option<String>, Option<u16>),
+    Custom(String),
 }
 
 impl Default for MachineID {
     fn default() -> Self {
-        MachineID::DefaultMachineID(None, None, None)
+        MachineID::Default(None, None, None)
     }
-}
-
-/// Hashable struct which represents a machine
-#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Clone, Default)]
-pub struct DefaultMachineID {
-    user: Option<String>,
-    host: Option<String>,
-    port: Option<u16>,
 }
 
 impl MachineID {
     pub fn new(user: Option<String>, host: Option<String>, port: Option<u16>) -> Self {
         match (user.is_some(), host.is_some(), port.is_some()) {
-            (true, true, true) | (false, false, false) => MachineID::DefaultMachineID(user, host, port),
+            (true, true, true) | (false, false, false) => MachineID::Default(user, host, port),
             _ => panic!("To generate LocalMachine ID, all values must be None. For RemoteMachine all values must be provided."),
         }
     }
@@ -62,17 +58,15 @@ impl MachineID {
 
 impl Display for MachineID {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut hasher = DefaultHasher::new();
         let str_id: String = match self {
-            MachineID::DefaultMachineID(user, host, port) => {
+            MachineID::Default(user, host, port) => {
                 let mut hasher = DefaultHasher::new();
-
                 user.hash(&mut hasher);
                 host.hash(&mut hasher);
                 port.hash(&mut hasher);
                 hasher.finish().to_string()
             }
-            MachineID::CustomID(s) => s.to_string(),
+            MachineID::Custom(s) => s.to_string(),
         };
 
         write!(f, "MachineID<{str_id}>")

@@ -1,7 +1,10 @@
+use std::cell::RefCell;
 use std::io::{self, Write};
 use std::path::PathBuf;
+use std::rc::Rc;
 
 use clap::Parser;
+use machine::Machine;
 use text_colorizer::Colorize;
 
 pub mod connection;
@@ -16,6 +19,7 @@ pub mod parser;
 pub mod scp;
 
 use connection::manager::MachinesManager;
+use connection::parser::BaseConnArgs;
 use error::{handle_result, CrustError, DefaultExitHandler};
 use interfaces::parser::Validation;
 use interfaces::response::CrustResult;
@@ -23,10 +27,67 @@ use logger::Logger;
 use machine::local::LocalMachine;
 use machine::remote::RemoteMachine;
 use parser::{AppArgs, Operation};
-use scp::parser::ValidatedArgs;
 use scp::scp;
 
 static LOGGER: Logger = Logger;
+
+/// Function to dynamic creating a machine with (or without) alias.
+/// Tries to get machine from manager at first. If alias does not exists
+/// in manager, try to create a new one (only if additional data was passed -
+/// if not return Error - early access)
+fn get_or_create_remote_machine(
+    args: impl BaseConnArgs,
+    manager: &mut MachinesManager,
+) -> Result<Rc<RefCell<Box<dyn Machine>>>, CrustError> {
+    let machine = match &args.alias() {
+        None => {
+            log::trace!("Creating remote machine (without alias)");
+            let (user, host) = args.split_addr();
+            RemoteMachine::get_or_create(
+                user,
+                host,
+                args.password().map(|s| s.to_owned()),
+                args.pkey().map(|pb| pb.to_owned()),
+                args.port().unwrap(),
+                None,
+                manager,
+            )
+        }
+        Some(alias) => {
+            log::trace!("Passed machine alias '{alias}'. Trying to get from manager...");
+            match RemoteMachine::get(alias, manager) {
+                Some(m) => m,
+                None => {
+                    log::trace!(
+                        "No machine with the given alias ({alias}) was found in the manager. Trying to create a new one..."
+                    );
+                    if args.addr().is_some() && (args.password().is_some() || args.pkey().is_some())
+                    {
+                        log::trace!(
+                            "Required args to create machine are found - creating a new one"
+                        );
+                        let (user, host) = args.split_addr();
+                        RemoteMachine::get_or_create(
+                            user,
+                            host,
+                            args.password().map(|s| s.to_owned()),
+                            args.pkey().map(|pb| pb.to_owned()),
+                            args.port().unwrap(),
+                            args.alias().map(|s| s.to_owned()),
+                            manager,
+                        )
+                    } else {
+                        return Err(CrustError {
+                            code: error::ExitCode::Internal,
+                            message: format!("There is no registered machine with alias '{alias}'"),
+                        });
+                    }
+                }
+            }
+        }
+    };
+    Ok(machine)
+}
 
 /// Entrypoint for CLI invoke.
 fn single_run(
@@ -42,61 +103,10 @@ fn single_run(
         None => &mut default_manager,
     };
 
-    //TODO make a new funtion with that
-
     let result = match args.get_operation() {
         Operation::Exec(exec_args) => {
             let machine = match &exec_args.remote {
-                Some(_args) => {
-                    match _args.alias_to.clone() {
-                        None => {
-                            log::debug!("Creating local machine - no passed alias");
-                            let (user, host) = _args.split_addr();
-                            RemoteMachine::get_or_create(
-                                user,
-                                host,
-                                _args.password_to.clone(),
-                                _args.pkey_to.clone(),
-                                _args.port_to.unwrap(),
-                                _args.alias_to.clone(),
-                                manager,
-                            )
-                        }
-                        Some(al) => {
-                            log::debug!("passed alias, trying get");
-                            let mach = RemoteMachine::get(&al, manager);
-                            match mach {
-                                Some(m) => m,
-                                None => {
-                                    log::debug!("Not found machine with alias '{}' - trying create a new one", al);
-                                    if _args.addr_to.is_some()
-                                        && (_args.password_to.is_some() || _args.pkey_to.is_some())
-                                    {
-                                        log::debug!("Machine could be created - creating");
-                                        let (user, host) = _args.split_addr();
-                                        RemoteMachine::get_or_create(
-                                            user,
-                                            host,
-                                            _args.password_to.clone(),
-                                            _args.pkey_to.clone(),
-                                            _args.port_to.unwrap(),
-                                            _args.alias_to.clone(),
-                                            manager,
-                                        )
-                                    } else {
-                                        log::error!("Passed alias without conn args but this is a first invoke");
-                                        return Err(CrustError {
-                                            code: error::ExitCode::Internal,
-                                            message: format!(
-                                                "There is no registered machine with alias '{al}'"
-                                            ),
-                                        });
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+                Some(_args) => get_or_create_remote_machine(_args.clone(), manager)?,
                 None => LocalMachine::get_or_create(manager),
             };
 
@@ -107,42 +117,22 @@ fn single_run(
             }
         }
         Operation::Scp(scp_args) => {
-            let args = ValidatedArgs::validate_and_create(scp_args.clone())?;
-
-            let src_machine = if args.hostname_from.is_none() {
-                LocalMachine::get_or_create(manager)
-            } else {
-                RemoteMachine::get_or_create(
-                    args.username_from.unwrap(),
-                    args.hostname_from.unwrap(),
-                    args.password_from.clone(),
-                    args.pkey_from.clone(),
-                    args.port_from.unwrap(),
-                    args.alias_from.clone(),
-                    manager,
-                )
+            let src_machine = match &scp_args.src.remote_params {
+                None => LocalMachine::get_or_create(manager),
+                Some(_args) => get_or_create_remote_machine(_args.clone(), manager)?,
             };
 
-            let dst_machine = if args.hostname_to.is_none() {
-                LocalMachine::get_or_create(manager)
-            } else {
-                RemoteMachine::get_or_create(
-                    args.username_to.unwrap(),
-                    args.hostname_to.unwrap(),
-                    args.password_to.clone(),
-                    args.pkey_to.clone(),
-                    args.port_to.unwrap(),
-                    args.alias_to.clone(),
-                    manager,
-                )
+            let dst_machine = match &scp_args.dst.remote_params {
+                None => LocalMachine::get_or_create(manager),
+                Some(_args) => get_or_create_remote_machine(_args.clone(), manager)?,
             };
 
             scp(
                 &src_machine,
                 &dst_machine,
-                PathBuf::from(args.path_from),
-                PathBuf::from(args.path_to),
-                args.progress,
+                PathBuf::from(&scp_args.src.path_from),
+                PathBuf::from(&scp_args.dst.path_to),
+                scp_args.progress,
             )?
         }
     };

@@ -5,7 +5,6 @@ use std::rc::Rc;
 
 use crate::error::CrustError;
 use crate::error::ExitCode;
-use crate::machine::DefaultMachineID;
 use crate::machine::{Machine, MachineID};
 
 pub trait MachinesManagerMethods {
@@ -30,8 +29,6 @@ pub trait MachinesManagerMethods {
 
     /// Gets a reference to stored machine.
     fn get_machine(&self, id: &MachineID) -> Option<&Rc<RefCell<Box<dyn Machine>>>>;
-
-    // fn get_id_by_alias(&self, alias: &str) -> Option<MachineID>;
 
     /// Reconnect to target machine. If conenction is single, just open
     /// connection again. In case of more complex examples, go through
@@ -86,10 +83,6 @@ impl MachinesManagerMethods for MachinesManager {
         log::debug!("Removed machine ({id})");
         Ok(())
     }
-
-    // fn get_id_by_alias(&self, alias: &str) -> Option<MachineID> {
-    //     None
-    // }
 }
 
 impl fmt::Display for MachinesManager {

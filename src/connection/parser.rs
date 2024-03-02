@@ -4,6 +4,22 @@ use crate::error::{CrustError, ExitCode};
 use crate::interfaces::parser::Validation;
 use clap::Args;
 
+/// Interface to sub struct with connection args.
+pub trait BaseConnArgs {
+    fn addr(&self) -> Option<&String>;
+    fn port(&self) -> Option<u16>;
+    fn password(&self) -> Option<&String>;
+    fn pkey(&self) -> Option<&PathBuf>;
+    fn alias(&self) -> Option<&String>;
+
+    /// Split address to get user and host.
+    /// Assumes that address was passed.
+    fn split_addr(&self) -> (String, String) {
+        let (u, h) = self.addr().as_ref().unwrap().split_once('@').unwrap();
+        (u.to_string(), h.to_string())
+    }
+}
+
 /// Struct with data required to connect to remote machine (default).
 #[derive(Debug, Args, Clone)]
 pub struct ConnectionArgsTo {
@@ -28,18 +44,26 @@ pub struct ConnectionArgsTo {
     pub alias_to: Option<String>,
 }
 
-impl ConnectionArgsTo {
-    /// Gets 'username' and 'hostname' from `addr` field.
-    pub fn split_addr(&self) -> (String, String) {
-        let (u, h) = self.addr_to.as_ref().unwrap().split_once('@').unwrap();
-        (u.to_string(), h.to_string())
+impl BaseConnArgs for ConnectionArgsTo {
+    fn addr(&self) -> Option<&String> {
+        self.addr_to.as_ref()
+    }
+    fn alias(&self) -> Option<&String> {
+        self.alias_to.as_ref()
+    }
+    fn password(&self) -> Option<&String> {
+        self.password_to.as_ref()
+    }
+    fn pkey(&self) -> Option<&PathBuf> {
+        self.pkey_to.as_ref()
+    }
+    fn port(&self) -> Option<u16> {
+        self.port_to
     }
 }
 
 impl Validation for ConnectionArgsTo {
     fn validate(&mut self) -> Result<(), CrustError> {
-        // TODO: handle alias validation
-
         if self.alias_to.is_some() {
             return Ok(());
         }
@@ -64,7 +88,7 @@ impl Validation for ConnectionArgsTo {
     }
 }
 
-/// Separeted struct with connection data required by methods which
+/// Separated struct with connection data required by methods which
 /// use more than 1 remote machine.
 /// As clap requires that every flag has a unique name, there is another
 /// postfix `_from`.
@@ -91,11 +115,21 @@ pub struct ConnectionArgsFrom {
     pub alias_from: Option<String>,
 }
 
-impl ConnectionArgsFrom {
-    /// Gets 'username' and 'hostname' from `addr` field.
-    pub fn split_addr(&self) -> (String, String) {
-        let (u, h) = self.addr_from.as_ref().unwrap().split_once('@').unwrap();
-        (u.to_string(), h.to_string())
+impl BaseConnArgs for ConnectionArgsFrom {
+    fn addr(&self) -> Option<&String> {
+        self.addr_from.as_ref()
+    }
+    fn alias(&self) -> Option<&String> {
+        self.alias_from.as_ref()
+    }
+    fn password(&self) -> Option<&String> {
+        self.password_from.as_ref()
+    }
+    fn pkey(&self) -> Option<&PathBuf> {
+        self.pkey_from.as_ref()
+    }
+    fn port(&self) -> Option<u16> {
+        self.port_from
     }
 }
 

@@ -91,11 +91,7 @@ impl RemoteMachine {
         manager: &mut MachinesManager,
     ) -> Option<Rc<RefCell<Box<dyn Machine>>>> {
         let id = RemoteMachine::generate_custom_id(alias);
-
-        match manager.get_machine(&id) {
-            Some(machine) => Some(machine.clone()),
-            None => None,
-        }
+        manager.get_machine(&id).cloned()
     }
 
     /// Getter for ssh config.
@@ -105,7 +101,7 @@ impl RemoteMachine {
 
     /// Private method to generate id for remote machine.
     fn generate_default_id(user: &str, host: &str, port: u16) -> MachineID {
-        MachineID::DefaultMachineID(
+        MachineID::Default(
             Some(String::from(user)),
             Some(String::from(host)),
             Some(port),
@@ -114,7 +110,7 @@ impl RemoteMachine {
 
     /// Private method to generate id for remote machine.
     fn generate_custom_id(alias: &str) -> MachineID {
-        MachineID::CustomID(alias.to_string())
+        MachineID::Custom(alias.to_string())
     }
 }
 
