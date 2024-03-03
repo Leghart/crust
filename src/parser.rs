@@ -9,7 +9,7 @@ use clap_verbosity_flag::Verbosity;
 /// Main parser
 pub struct AppArgs {
     #[clap(subcommand)]
-    operation: Operation,
+    operation: Option<Operation>,
 
     #[clap(flatten)]
     pub verbose: Verbosity,
@@ -19,14 +19,16 @@ pub struct AppArgs {
 }
 
 impl AppArgs {
-    pub fn get_operation(&self) -> &Operation {
-        &self.operation
+    pub fn get_operation(&self) -> Option<&Operation> {
+        self.operation.as_ref()
     }
 }
 
 impl Validation for AppArgs {
     fn validate(&mut self) -> Result<(), crate::error::CrustError> {
-        self.operation.validate()?;
+        if self.operation.is_some() {
+            self.operation.as_mut().unwrap().validate()?;
+        }
         Ok(())
     }
 }

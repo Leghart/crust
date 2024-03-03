@@ -2,6 +2,7 @@ use std::cell::RefCell;
 use std::io::{self, BufRead, Write};
 use std::path::PathBuf;
 use std::rc::Rc;
+use std::time::Duration;
 
 use clap::Parser;
 use machine::Machine;
@@ -103,7 +104,15 @@ fn single_run(
         None => &mut default_manager,
     };
 
-    let result = match args.get_operation() {
+    let operation = args.get_operation();
+
+    // Set up a new session when operation was not passed
+    if operation.is_none() {
+        log::info!("Starting a new session");
+        return Ok(CrustResult::default());
+    }
+
+    let result = match operation.unwrap() {
         Operation::Exec(exec_args) => {
             let machine = match &exec_args.remote {
                 Some(_args) => get_or_create_remote_machine(_args.clone(), manager)?,
@@ -152,12 +161,26 @@ fn read_stdin() -> String {
     input
 }
 
-/// Read data from specific FIFO pipe (only in shell invoke)
+/// Read data from specific FIFO pipe (only in shell invoke).
+/// Potential race condition - if it is a first invoke, shell script
+/// has to create tmp_dir and pipe, but in the meanwhile crust will try
+/// to get data from pipe. To protect against panic, method wait for
+/// `timeout=5` seconds to create a fifo.
 fn read_fifo() -> String {
     let mut input = String::new();
-
     log::warn!("waiting for fifo...");
-    let file = std::fs::File::open("pipe").unwrap();
+    let pid = std::process::id();
+    let fifo = format!("/tmp/tmp_crust_{pid}/fifo");
+
+    let timeout = 5;
+    let start = std::time::Instant::now();
+    while !std::path::Path::new(&fifo).exists()
+        && start + Duration::from_secs(timeout) >= std::time::Instant::now()
+    {
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+
+    let file = std::fs::File::open(fifo).expect(&format!("FIFO was not created during {timeout}s"));
     let mut reader = std::io::BufReader::new(file);
 
     reader.read_line(&mut input).unwrap();
@@ -170,12 +193,11 @@ fn read_fifo() -> String {
 fn multi_runs(args: AppArgs) {
     let mut manager = MachinesManager::default();
     let mut curr_args = args.clone();
-
-    let bash_env = false;
-    let read_input = match bash_env {
-        true => read_fifo,
-        false => read_stdin,
-    };
+    let read_input =
+        match std::env::var("CRUST_BG_MODE").map_or(false, |v| v.to_lowercase() == "true") {
+            true => read_fifo,
+            false => read_stdin,
+        };
     loop {
         let result = single_run(curr_args, Some(&mut manager));
 
