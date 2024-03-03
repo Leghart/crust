@@ -302,7 +302,7 @@ mod tests {
 
         assert_eq!(res.stdout(), "");
         assert_eq!(res.stderr(), "bash: abc: command not found\n");
-        assert_eq!(res.retcode(), 0); //TODO?: retcode is channel status -> not the same
+        assert_eq!(res.retcode(), 1);
     }
 
     #[serial]
@@ -338,26 +338,26 @@ mod tests {
         assert_eq!(ssh_original.to_string(), ssh_cloned.to_string())
     }
 
-    // #[serial]
-    // #[test]
-    // fn test_remove_remotemachine_tmpdir() {
-    //     let (user, host, pass, pkey, port) = connect_args();
-    //     let mut machine = RemoteMachine::new(&user, &host, pass, pkey, port);
-    //     let r = machine.connect();
-    //     assert!(r.is_ok());
+    #[serial]
+    #[test]
+    fn test_remove_remotemachine_tmpdir() {
+        let (user, host, pass, pkey, port) = connect_args();
+        let mut machine = RemoteMachine::new(&user, &host, pass, pkey, port);
+        let r = machine.connect();
+        assert!(r.is_ok());
 
-    //     let path = machine.create_tmpdir().unwrap();
-    //     let result = machine.remove_tmpdir();
+        let path = machine.create_tmpdir().unwrap();
+        let result = machine.remove_tmpdir();
 
-    //     assert!(result.is_ok());
-    //     assert_eq!(
-    //         "",
-    //         exec_on_remote(&format!(
-    //             "find /tmp -name {}",
-    //             path.as_path().to_str().unwrap()
-    //         ))
-    //     );
-    // }
+        assert!(result.is_ok());
+        assert_eq!(
+            "",
+            exec_on_remote(&format!(
+                "find /tmp -name {}",
+                path.as_path().to_str().unwrap()
+            ))
+        );
+    }
 
     #[serial]
     #[test]
