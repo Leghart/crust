@@ -13,6 +13,8 @@ pub mod exec;
 pub mod interfaces;
 pub mod logger;
 pub mod machine;
+pub mod utils;
+
 #[cfg(test)]
 pub mod mocks;
 pub mod parser;
@@ -29,6 +31,7 @@ use machine::remote::RemoteMachine;
 use machine::Machine;
 use parser::{AppArgs, Operation};
 use scp::scp;
+use utils::shell_manager::ShellManager;
 
 static LOGGER: Logger = Logger;
 
@@ -180,7 +183,8 @@ fn read_fifo() -> String {
         std::thread::sleep(std::time::Duration::from_millis(100));
     }
 
-    let file = std::fs::File::open(fifo).expect(&format!("FIFO was not created during {timeout}s"));
+    let file = std::fs::File::open(fifo)
+        .unwrap_or_else(|_| panic!("FIFO was not created during {timeout}s"));
     let mut reader = std::io::BufReader::new(file);
 
     reader.read_line(&mut input).unwrap();
@@ -193,11 +197,10 @@ fn read_fifo() -> String {
 fn multi_runs(args: AppArgs) {
     let mut manager = MachinesManager::default();
     let mut curr_args = args.clone();
-    let read_input =
-        match std::env::var("CRUST_BG_MODE").map_or(false, |v| v.to_lowercase() == "true") {
-            true => read_fifo,
-            false => read_stdin,
-        };
+    let read_input = match ShellManager::is_background_mode() {
+        true => read_fifo,
+        false => read_stdin,
+    };
     loop {
         let result = single_run(curr_args, Some(&mut manager));
 
@@ -221,14 +224,18 @@ fn multi_runs(args: AppArgs) {
         base_input.append(&mut iter);
         log::debug!("user cmd: {:?}", base_input);
         curr_args = AppArgs::parse_from(base_input);
+
+        logger::init(&curr_args.verbose.log_level_filter()); //TODO: for background invoke from shell, it's first initialization
     }
 }
 
 pub fn main() {
     let args = parser::AppArgs::parse();
-    logger::init(&args.verbose.log_level_filter()).expect("Logger error");
 
-    log::debug!("Background mode: {}", args.background);
+    if !(ShellManager::is_background_mode() && ShellManager::is_shell_invoke()) {
+        logger::init(&args.verbose.log_level_filter());
+    }
+
     match args.background {
         false => {
             let result = single_run(args, None);

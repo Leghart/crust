@@ -1,7 +1,7 @@
 #!/bin/bash
 
 BG_FLAG=""
-crust_bin="./target/debug/crust"
+crust_bin="cargo run -- " #TODO: to change before release version
 
 function get_fifo_by_pid() {
     pipe="/tmp/tmp_crust_${1}/fifo"
@@ -11,8 +11,7 @@ function get_fifo_by_pid() {
 }
 
 function setup_env() {
-    pid="$1"
-    dir_path="/tmp/tmp_crust_${pid}"
+    dir_path="/tmp/tmp_crust_${1}"
     mkdir "$dir_path"
     mkfifo "${dir_path}/fifo"
     echo "${dir_path}/fifo"
@@ -23,8 +22,7 @@ function get_bg_process_pid() {
 }
 
 function cleanup() {
-    pid=$(get_bg_process_pid)
-    dir_path="/tmp/tmp_crust_${pid}"
+    dir_path="/tmp/tmp_crust_${1}"
     rm -rf "$dir_path"
 }
 
@@ -55,7 +53,7 @@ for i in "$@"; do
                 echo >&2 "No active crust process to termination"
                 exit 1
             else
-                cleanup
+                cleanup "$pid"
                 terminate_bg_process "$pid"
                 exit 0
             fi
@@ -77,6 +75,7 @@ for i in "$@"; do
 done
 
 cmd="$*"
+export CRUST_SHELL_INVOKE=true
 
 if [[ -z "$BG_FLAG" ]]; then
     $crust_bin $cmd
@@ -90,13 +89,13 @@ else
         pid="$!"
         fifo="$(setup_env "$pid")"
     else
-        #  write to existing fifo
+        #  pass command to existing fifo
         fifo="$(get_fifo_by_pid $pid)"
     fi
     echo $cmd >"$fifo"
 fi
 
 if [[ -z "$BG_FLAG" ]]; then
-    cleanup
+    cleanup "$pid"
     terminate_bg_process "$pid"
 fi

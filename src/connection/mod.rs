@@ -158,7 +158,6 @@ impl SSH for SshConnection {
 
         let mut stdout = String::new();
         let mut stderr = String::new();
-        // let retcode = channel.exit_status()?;
 
         channel.read_to_string(&mut stdout)?;
         channel.stderr().read_to_string(&mut stderr)?;
