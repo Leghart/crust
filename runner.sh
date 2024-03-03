@@ -1,7 +1,6 @@
 #!/bin/bash
-# TODO!: handle log level with env
 
-BG=""
+BG_FLAG=""
 crust_bin="./target/debug/crust"
 
 function get_fifo_by_pid() {
@@ -13,7 +12,6 @@ function get_fifo_by_pid() {
 
 function setup_env() {
     pid="$1"
-    #TODO: handle case when piddir exists (artifact)
     dir_path="/tmp/tmp_crust_${pid}"
     mkdir "$dir_path"
     mkfifo "${dir_path}/fifo"
@@ -22,11 +20,12 @@ function setup_env() {
 
 function get_bg_process_pid() {
     echo "$(ps aux | grep '[c]rust' | awk '{print $2}' | head -n 1)"
-    # echo $(pgrep -f crust)
 }
 
 function cleanup() {
-    echo "cleanup"
+    pid=$(get_bg_process_pid)
+    dir_path="/tmp/tmp_crust_${pid}"
+    rm -rf "$dir_path"
 }
 
 function terminate_bg_process() {
@@ -56,13 +55,13 @@ for i in "$@"; do
                 echo >&2 "No active crust process to termination"
                 exit 1
             else
-                terminate_bg_process "$pid"
                 cleanup
+                terminate_bg_process "$pid"
                 exit 0
             fi
             ;;
         -b | --background)
-            BG="-b"
+            BG_FLAG=true
             export CRUST_BG_MODE=true
             shift 1
             ;;
@@ -79,22 +78,25 @@ done
 
 cmd="$*"
 
-pid=$(get_bg_process_pid)
-if [[ -z "$pid" ]]; then
-    # create background process without command to get a process pid and
-    # setup environment for the next calls
-    $crust_bin $BG &
-    pid="$!"
-    fifo="$(setup_env "$pid")"
+if [[ -z "$BG_FLAG" ]]; then
+    $crust_bin $cmd
+    exit "$?"
 else
-    #  write to existing fifo
-    fifo="$(get_fifo_by_pid $pid)"
+    pid=$(get_bg_process_pid)
+    if [[ -z "$pid" ]]; then
+        # create background process without command to get a process pid and
+        # setup environment for the next calls
+        $crust_bin -b &
+        pid="$!"
+        fifo="$(setup_env "$pid")"
+    else
+        #  write to existing fifo
+        fifo="$(get_fifo_by_pid $pid)"
+    fi
+    echo $cmd >"$fifo"
 fi
-# echo "CMD: $cmd, fifo: $fifo"
-echo $cmd >"$fifo"
 
-if [[ -z "$BG" ]]; then
-    echo "INSIDE"
-    terminate_bg_process
+if [[ -z "$BG_FLAG" ]]; then
     cleanup
+    terminate_bg_process "$pid"
 fi

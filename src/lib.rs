@@ -5,7 +5,6 @@ use std::rc::Rc;
 use std::time::Duration;
 
 use clap::Parser;
-use machine::Machine;
 use text_colorizer::Colorize;
 
 pub mod connection;
@@ -27,6 +26,7 @@ use interfaces::response::CrustResult;
 use logger::Logger;
 use machine::local::LocalMachine;
 use machine::remote::RemoteMachine;
+use machine::Machine;
 use parser::{AppArgs, Operation};
 use scp::scp;
 
@@ -169,8 +169,8 @@ fn read_stdin() -> String {
 fn read_fifo() -> String {
     let mut input = String::new();
     log::warn!("waiting for fifo...");
-    let pid = std::process::id();
-    let fifo = format!("/tmp/tmp_crust_{pid}/fifo");
+
+    let fifo = format!("/tmp/tmp_crust_{}/fifo", std::process::id());
 
     let timeout = 5;
     let start = std::time::Instant::now();
