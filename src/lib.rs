@@ -1,10 +1,10 @@
 use std::cell::RefCell;
-use std::io::{self, Write};
+use std::io::{self, BufRead, Write};
 use std::path::PathBuf;
 use std::rc::Rc;
+use std::time::Duration;
 
 use clap::Parser;
-use machine::Machine;
 use text_colorizer::Colorize;
 
 pub mod connection;
@@ -13,6 +13,8 @@ pub mod exec;
 pub mod interfaces;
 pub mod logger;
 pub mod machine;
+pub mod utils;
+
 #[cfg(test)]
 pub mod mocks;
 pub mod parser;
@@ -26,8 +28,10 @@ use interfaces::response::CrustResult;
 use logger::Logger;
 use machine::local::LocalMachine;
 use machine::remote::RemoteMachine;
+use machine::Machine;
 use parser::{AppArgs, Operation};
 use scp::scp;
+use utils::shell_manager::ShellManager;
 
 static LOGGER: Logger = Logger;
 
@@ -103,7 +107,15 @@ fn single_run(
         None => &mut default_manager,
     };
 
-    let result = match args.get_operation() {
+    let operation = args.get_operation();
+
+    // Set up a new session when operation was not passed
+    if operation.is_none() {
+        log::info!("Starting a new session");
+        return Ok(CrustResult::default());
+    }
+
+    let result = match operation.unwrap() {
         Operation::Exec(exec_args) => {
             let machine = match &exec_args.remote {
                 Some(_args) => get_or_create_remote_machine(_args.clone(), manager)?,
@@ -140,9 +152,55 @@ fn single_run(
     Ok(result)
 }
 
+/// Read data from standard input (used in manual invoke).
+fn read_stdin() -> String {
+    print!("\n[q to exit]>> ");
+    io::stdout().flush().unwrap();
+
+    let mut input = String::new();
+    io::stdin()
+        .read_line(&mut input)
+        .expect("error: unable to read user input");
+    input
+}
+
+/// Read data from specific FIFO pipe (only in shell invoke).
+/// Potential race condition - if it is a first invoke, shell script
+/// has to create tmp_dir and pipe, but in the meanwhile crust will try
+/// to get data from pipe. To protect against panic, method wait for
+/// `timeout=5` seconds to create a fifo.
+fn read_fifo() -> String {
+    let mut input = String::new();
+    log::warn!("waiting for fifo...");
+
+    let fifo = format!("/tmp/tmp_crust_{}/fifo", std::process::id());
+
+    let timeout = 5;
+    let start = std::time::Instant::now();
+    while !std::path::Path::new(&fifo).exists()
+        && start + Duration::from_secs(timeout) >= std::time::Instant::now()
+    {
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
+
+    let file = std::fs::File::open(fifo)
+        .unwrap_or_else(|_| panic!("FIFO was not created during {timeout}s"));
+    let mut reader = std::io::BufReader::new(file);
+
+    reader.read_line(&mut input).unwrap();
+    input
+}
+
+/// Allows to run in background mode (store connections).
+/// Supports two ways of invoke: via command line or bash script
+/// manager (should be used in external scripts).
 fn multi_runs(args: AppArgs) {
     let mut manager = MachinesManager::default();
     let mut curr_args = args.clone();
+    let read_input = match ShellManager::is_background_mode() {
+        true => read_fifo,
+        false => read_stdin,
+    };
     loop {
         let result = single_run(curr_args, Some(&mut manager));
 
@@ -154,13 +212,7 @@ fn multi_runs(args: AppArgs) {
             Err(e) => log::error!("{e}"),
         };
 
-        print!("\n[q to exit]>> ");
-        io::stdout().flush().unwrap();
-
-        let mut input = String::new();
-        io::stdin()
-            .read_line(&mut input)
-            .expect("error: unable to read user input");
+        let input = read_input();
 
         if input == "q\n" {
             break;
@@ -172,14 +224,18 @@ fn multi_runs(args: AppArgs) {
         base_input.append(&mut iter);
         log::debug!("user cmd: {:?}", base_input);
         curr_args = AppArgs::parse_from(base_input);
+
+        logger::init(&curr_args.verbose.log_level_filter()); //TODO: for background invoke from shell, it's first initialization
     }
 }
 
 pub fn main() {
     let args = parser::AppArgs::parse();
-    logger::init(&args.verbose.log_level_filter()).expect("Logger error");
 
-    log::debug!("Background mode: {}", args.background);
+    if !(ShellManager::is_background_mode() && ShellManager::is_shell_invoke()) {
+        logger::init(&args.verbose.log_level_filter());
+    }
+
     match args.background {
         false => {
             let result = single_run(args, None);

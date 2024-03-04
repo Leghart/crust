@@ -158,12 +158,16 @@ impl SSH for SshConnection {
 
         let mut stdout = String::new();
         let mut stderr = String::new();
-        let retcode = channel.exit_status()?;
 
         channel.read_to_string(&mut stdout)?;
         channel.stderr().read_to_string(&mut stderr)?;
-
         channel.wait_close()?;
+
+        // TODO: Workaround to register unknown command as failure
+        let retcode = match stderr.is_empty() {
+            true => 0,
+            false => 1,
+        };
 
         Ok(CrustResult::new(&stdout, &stderr, retcode))
     }
