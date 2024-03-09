@@ -136,6 +136,20 @@ pub trait Scp {
         to: &Path,
         progress: bool,
     ) -> Result<CrustResult, CrustError> {
+        // Pseudo-code
+        // if file_from.isfile(){
+        //     copy_data(from,to);
+        // } else{
+        //     let dirname = from.name;
+        //     if remote.has_dir(dirname){
+        //         return Err?;
+        //     }
+        //     remote.mkdir(dirname);
+        //     for content in local.from.listdir(){
+        //         copy(from/dirname/content, to/dirname/content)
+        //     }
+        // }
+
         machine.connect()?;
 
         let size: u64 = match std::fs::metadata(from) {
