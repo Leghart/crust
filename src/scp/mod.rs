@@ -42,8 +42,10 @@ pub fn scp(
             let mut local: Box<dyn Machine> = Box::<LocalMachine>::default();
             local.create_tmpdir()?;
             let file_path = local.create_tmpdir_content("tmp_scp")?;
+
             log::trace!("Run `download` from {} to {}", machine_from, local);
             local.download(&mut machine_from, &path_from, &file_path, progress)?;
+
             log::trace!("Run `upload` from {} to {}", local, machine_to);
             local.upload(&mut machine_to, &file_path, &path_to, progress)?;
 
@@ -59,8 +61,8 @@ pub fn scp(
     }
 }
 
-/// Private function for copying single-file data by bytes. Used by `upload`
-/// and `download` methods.
+/// Private function for copying single-file data by bytes. Used by `_upload_file`
+/// and `_download_file` trait methods.
 fn copy_data(
     mut file_source: TransferFile,
     mut file_target: TransferFile,
@@ -126,9 +128,58 @@ impl TransferFile {
 }
 
 pub trait Scp {
-    /// TODO: add copy directories
-    /// Allows to upload resource from local to remote.
-    /// Supports [Box<dyn Machine>] objects and results from MachinesManager as well.
+    /// Copies data from remote source machine to local machine (download).
+    /// Allows to copy file and directories (including nested structures).
+    fn download(
+        &self,
+        machine: &mut Box<dyn Machine>,
+        from: &Path,
+        to: &Path,
+        progress: bool,
+    ) -> Result<CrustResult, CrustError> {
+        machine.connect()?;
+        let sftp = machine.get_session().unwrap().sftp()?;
+        match sftp.stat(from) {
+            Err(_) => {
+                return Err(CrustError {
+                    code: ExitCode::Remote,
+                    message: format!("Requested source '{from:?}' does not exist"),
+                })
+            }
+            Ok(metadata) => {
+                if metadata.is_file() {
+                    return self._download_file(machine, from, to, progress);
+                } else if metadata.is_dir() {
+                    match to.exists() {
+                        true => {
+                            return Err(CrustError {
+                                code: ExitCode::Local,
+                                message: format!("Directory '{to:?}' already exists"),
+                            })
+                        }
+                        false => std::fs::create_dir(to),
+                    }?;
+                    for (path, _) in sftp.readdir(from)? {
+                        self.download(
+                            machine,
+                            &path,
+                            &Path::new(to).join(&path.file_name().unwrap()),
+                            progress,
+                        )?;
+                    }
+                } else {
+                    return Err(CrustError {
+                        code: ExitCode::Remote,
+                        message: format!("'{from:?}' source is not file or directory"),
+                    });
+                }
+            }
+        }
+        Ok(CrustResult::default())
+    }
+
+    /// Copies data from source machine to requested machine (upload).
+    /// Allows to copy file and directories (including nested structures).
     fn upload(
         &self,
         machine: &mut Box<dyn Machine>,
@@ -136,20 +187,48 @@ pub trait Scp {
         to: &Path,
         progress: bool,
     ) -> Result<CrustResult, CrustError> {
-        // Pseudo-code
-        // if file_from.isfile(){
-        //     copy_data(from,to);
-        // } else{
-        //     let dirname = from.name;
-        //     if remote.has_dir(dirname){
-        //         return Err?;
-        //     }
-        //     remote.mkdir(dirname);
-        //     for content in local.from.listdir(){
-        //         copy(from/dirname/content, to/dirname/content)
-        //     }
-        // }
+        machine.connect()?;
 
+        let meta = std::fs::metadata(from)?;
+        if meta.is_file() {
+            return self._upload_file(machine, from, to, progress);
+        } else if meta.is_dir() {
+            let sftp = machine.get_session().unwrap().sftp()?;
+
+            match sftp.stat(&to) {
+                Ok(_) => {
+                    return Err(CrustError {
+                        code: ExitCode::Remote,
+                        message: format!("Directory '{to:?}' already exists"),
+                    })
+                }
+                Err(_) => sftp.mkdir(&to, 0o755)?,
+            };
+
+            // TODO?: add rayon to parallel copying
+            for path in std::fs::read_dir(from)? {
+                let new_path_from = path?;
+                let new_path_to = Path::new(to).join(&new_path_from.path().file_name().unwrap());
+                self.upload(machine, &new_path_from.path(), &new_path_to, progress)?;
+            }
+        } else {
+            return Err(CrustError {
+                code: ExitCode::Local,
+                message: format!("'{from:?}' source is not file or directory"),
+            });
+        }
+        Ok(CrustResult::default())
+    }
+
+    /// Collect data about source file and prepare to upload data.
+    /// Supports [Box<dyn Machine>] objects and results from MachinesManager as well.
+    fn _upload_file(
+        &self,
+        machine: &mut Box<dyn Machine>,
+        from: &Path,
+        to: &Path,
+        progress: bool,
+    ) -> Result<CrustResult, CrustError> {
         machine.connect()?;
 
         let size: u64 = match std::fs::metadata(from) {
@@ -183,10 +262,9 @@ pub trait Scp {
         Ok(CrustResult::default())
     }
 
-    /// TODO: add copy directories
-    /// Allows to download resource from remote to local.
+    /// Collect data about source file and prepare to download data.
     /// Supports [Box<dyn Machine>] objects and results from MachinesManager as well.
-    fn download(
+    fn _download_file(
         &self,
         machine: &mut Box<dyn Machine>,
         from: &Path,
