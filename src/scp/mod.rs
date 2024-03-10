@@ -163,7 +163,7 @@ pub trait Scp {
                         self.download(
                             machine,
                             &path,
-                            &Path::new(to).join(&path.file_name().unwrap()),
+                            &Path::new(to).join(path.file_name().unwrap()),
                             progress,
                         )?;
                     }
@@ -195,20 +195,20 @@ pub trait Scp {
         } else if meta.is_dir() {
             let sftp = machine.get_session().unwrap().sftp()?;
 
-            match sftp.stat(&to) {
+            match sftp.stat(to) {
                 Ok(_) => {
                     return Err(CrustError {
                         code: ExitCode::Remote,
                         message: format!("Directory '{to:?}' already exists"),
                     })
                 }
-                Err(_) => sftp.mkdir(&to, 0o755)?,
+                Err(_) => sftp.mkdir(to, 0o755)?,
             };
 
             // TODO?: add rayon to parallel copying
             for path in std::fs::read_dir(from)? {
                 let new_path_from = path?;
-                let new_path_to = Path::new(to).join(&new_path_from.path().file_name().unwrap());
+                let new_path_to = Path::new(to).join(new_path_from.path().file_name().unwrap());
                 self.upload(machine, &new_path_from.path(), &new_path_to, progress)?;
             }
         } else {

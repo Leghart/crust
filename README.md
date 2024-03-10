@@ -1,6 +1,6 @@
 # crust
-![GitHub CI](https://github.com/Leghart/crust/actions/workflows/badges.yml/badge.svg)
-
+![GitHub CI MSRV](https://github.com/Leghart/crust/actions/workflows/msrv.yml/badge.svg)
+[![Security audit](https://github.com/Leghart/crust/actions/workflows/audit.yml/badge.svg)]
 
 ## Run Locally
 
