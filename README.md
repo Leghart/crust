@@ -1,4 +1,6 @@
 # crust
+![GitHub CI](https://github.com/Leghart/crust/actions/workflows/badges.yml/badge.svg)
+
 
 ## Run Locally
 
@@ -73,5 +75,5 @@ sudo ./podman/manage_podman.py --help
 ```
 ## Authors
 
-- [@Leghart](https://gitlab.com/Leghart)
-- [@WiktorNowak](https://gitlab.com/WiktorNowak)
+- [@Leghart](https://github.com/Leghart)
+- [@WiktorNowak](https://github.com/WiktorNowak98)
