@@ -29,6 +29,9 @@ pub trait Machine: TemporaryDirectory + Exec + Scp + Display {
 
     /// Required to maintain a common interface.
     fn connect(&mut self) -> Result<(), CrustError>;
+
+    /// Checks whether machine is connected (connection is alive).
+    fn is_connected(&self) -> bool;
 }
 
 /// Hashable enum represents a machine ID. There are two options to make

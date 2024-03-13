@@ -85,6 +85,11 @@ impl Machine for LocalMachine {
     fn connect(&mut self) -> Result<(), CrustError> {
         Ok(())
     }
+
+    #[inline(always)]
+    fn is_connected(&self) -> bool {
+        true
+    }
 }
 
 /// Implementation of temporary directory handling.
@@ -195,7 +200,7 @@ impl Exec for LocalMachine {
 
 /// Add 'scp' method for LocalMachine
 impl Scp for LocalMachine {
-    fn get_machine(&self) -> MachineType {
+    fn machine_type(&self) -> MachineType {
         self.mtype()
     }
 }

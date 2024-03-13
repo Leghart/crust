@@ -122,7 +122,7 @@ impl Machine for RemoteMachine {
     }
 
     fn get_session(&self) -> Option<ssh2::Session> {
-        Some(self.ssh.borrow().session().clone())
+        Some(self.get_ssh().borrow().session().clone())
     }
 
     fn get_id(&self) -> &MachineID {
@@ -130,7 +130,11 @@ impl Machine for RemoteMachine {
     }
 
     fn connect(&mut self) -> Result<(), CrustError> {
-        self.ssh.borrow_mut().connect()
+        self.get_ssh().borrow_mut().connect()
+    }
+
+    fn is_connected(&self) -> bool {
+        self.get_ssh().borrow().is_connected()
     }
 }
 
@@ -206,7 +210,7 @@ impl Exec for RemoteMachine {
 
 /// Add 'scp' method for RemoteMachine
 impl Scp for RemoteMachine {
-    fn get_machine(&self) -> MachineType {
+    fn machine_type(&self) -> MachineType {
         self.mtype()
     }
 }

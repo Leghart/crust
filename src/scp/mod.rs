@@ -29,7 +29,7 @@ pub fn scp(
 ) -> Result<CrustResult, CrustError> {
     let mut machine_from = _machine_from.borrow_mut();
     let mut machine_to = _machine_to.borrow_mut();
-    match (machine_from.get_machine(), machine_to.get_machine()) {
+    match (machine_from.machine_type(), machine_to.machine_type()) {
         (MachineType::LocalMachine, MachineType::RemoteMachine) => {
             log::trace!("Run `upload` from {} to {}", machine_from, machine_to);
             machine_from.upload(&mut machine_to, &path_from, &path_to, progress)
@@ -137,7 +137,10 @@ pub trait Scp {
         to: &Path,
         progress: bool,
     ) -> Result<CrustResult, CrustError> {
-        machine.connect()?;
+        if !machine.is_connected() {
+            machine.connect()?;
+        }
+
         let sftp = machine.get_session().unwrap().sftp()?;
         match sftp.stat(from) {
             Err(_) => {
@@ -187,7 +190,9 @@ pub trait Scp {
         to: &Path,
         progress: bool,
     ) -> Result<CrustResult, CrustError> {
-        machine.connect()?;
+        if !machine.is_connected() {
+            machine.connect()?;
+        }
 
         let meta = std::fs::metadata(from)?;
         if meta.is_file() {
@@ -229,7 +234,9 @@ pub trait Scp {
         to: &Path,
         progress: bool,
     ) -> Result<CrustResult, CrustError> {
-        machine.connect()?;
+        if !machine.is_connected() {
+            machine.connect()?;
+        }
 
         let size: u64 = match std::fs::metadata(from) {
             Ok(metadata) => metadata.len(),
@@ -271,7 +278,9 @@ pub trait Scp {
         to: &Path,
         progress: bool,
     ) -> Result<CrustResult, CrustError> {
-        machine.connect()?;
+        if !machine.is_connected() {
+            machine.connect()?;
+        }
 
         let (channel, stat) = machine.get_session().unwrap().scp_recv(from)?;
         let file_to_read = TransferFile::Remote(channel);
@@ -289,6 +298,6 @@ pub trait Scp {
         Ok(CrustResult::default())
     }
 
-    /// Getter for machine (common interface provided by Machine trait).
-    fn get_machine(&self) -> MachineType;
+    /// Getter for machine type (common interface provided by Machine trait).
+    fn machine_type(&self) -> MachineType;
 }

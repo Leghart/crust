@@ -26,6 +26,10 @@ impl Machine for MockMachine {
     fn connect(&mut self) -> Result<(), CrustError> {
         Ok(())
     }
+
+    fn is_connected(&self) -> bool {
+        true
+    }
 }
 impl Exec for MockMachine {
     fn exec(&self, _: &str) -> Result<CrustResult, CrustError> {
@@ -38,7 +42,7 @@ impl Exec for MockMachine {
 }
 
 impl Scp for MockMachine {
-    fn get_machine(&self) -> MachineType {
+    fn machine_type(&self) -> MachineType {
         self.mtype()
     }
 }
