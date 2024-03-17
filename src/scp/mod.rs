@@ -77,8 +77,6 @@ pub fn scp(
     }
 }
 
-/// Private function for copying single-file data by bytes. Used by `_upload_file`
-/// and `_download_file` trait methods.
 fn copy_data(
     mut file_source: TransferFile,
     mut file_target: TransferFile,

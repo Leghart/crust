@@ -12,7 +12,8 @@ use crate::interfaces::progress_bar::ProgressBar;
 use crate::interfaces::response::CrustResult;
 use crate::scp::{copy_data, TransferFile};
 
-// TODO!: fix progress bar
+/// Copies data from local machine to remote machine (upload).
+/// Allows to copy file and directories (including nested structures).
 pub fn upload(
     mut ssh: SshConnection,
     from: &Path,
@@ -57,7 +58,7 @@ pub fn upload(
                 }
             }
             Some(_t) => {
-                // TODO!: add semaphore for max threads numer
+                // TODO?: add semaphore for max threads numer
                 let handles: Vec<_> = std::fs::read_dir(from)?
                     .map(|path| {
                         let ssh = ssh.clone();

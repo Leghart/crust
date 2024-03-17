@@ -264,6 +264,7 @@ mod tests {
         assert!(r.is_ok());
 
         let mut cloned = machine.clone();
+        let _ = cloned.connect();
         let path = cloned.create_tmpdir().unwrap();
 
         std::mem::drop(cloned);
@@ -322,20 +323,20 @@ mod tests {
         assert_eq!(res.retcode(), 0);
     }
 
-    // #[serial]
-    // #[test]
-    // fn test_clone_remotemachine() {
-    //     let (user, host, pass, pkey, port) = connect_args();
-    //     let machine = RemoteMachine::new(&user, &host, pass, pkey, port);
+    #[serial]
+    #[test]
+    fn test_clone_remotemachine() {
+        let (user, host, pass, pkey, port) = connect_args();
+        let machine = RemoteMachine::new(&user, &host, pass, pkey, port);
 
-    //     let cloned = machine.clone();
+        let cloned = machine.clone();
 
-    //     assert_eq!(machine.get_id(), cloned.get_id());
-    //     assert!(!cloned.can_be_removed());
-    //     let ssh_original = machine.get_ssh().borrow();
-    //     let ssh_cloned = cloned.get_ssh().borrow();
-    //     assert_eq!(ssh_original.to_string(), ssh_cloned.to_string())
-    // }
+        assert_eq!(machine.get_id(), cloned.get_id());
+        assert!(!cloned.can_be_removed());
+        let ssh_original = machine.get_ssh().unwrap();
+        let ssh_cloned = cloned.get_ssh().unwrap();
+        assert_eq!(ssh_original.to_string(), ssh_cloned.to_string())
+    }
 
     #[serial]
     #[test]

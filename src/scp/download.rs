@@ -59,7 +59,7 @@ pub fn download(
                         }
                     }
                     Some(_t) => {
-                        // TODO!: add semaphore for max threads numer
+                        // TODO?: add semaphore for max threads numer
                         let handles: Vec<_> = sftp
                             .readdir(from)?
                             .into_iter()
