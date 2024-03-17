@@ -31,6 +31,7 @@ use machine::remote::RemoteMachine;
 use machine::Machine;
 use parser::{AppArgs, Operation};
 use scp::scp;
+use scp::threads::tscp;
 use utils::shell_manager::ShellManager;
 
 static LOGGER: Logger = Logger;
@@ -139,7 +140,7 @@ fn single_run(
                 Some(_args) => get_or_create_remote_machine(_args.clone(), manager)?,
             };
 
-            scp(
+            tscp(
                 &src_machine,
                 &dst_machine,
                 PathBuf::from(&scp_args.src.path_from),

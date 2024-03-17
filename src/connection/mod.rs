@@ -49,7 +49,6 @@ pub struct ConnectArgs {
 }
 
 /// Main structure used in RemoteMachine
-#[derive(Clone)]
 pub struct SshConnection {
     session: Option<Session>,
     pub connect_args: Option<ConnectArgs>,
@@ -217,6 +216,19 @@ impl SSH for SshConnection {
 
         channel.wait_close()?;
         Ok(CrustResult::default())
+    }
+}
+
+impl Clone for SshConnection {
+    fn clone(&self) -> Self {
+        let conn_args = self.connect_args.clone().unwrap();
+        SshConnection::new(
+            &conn_args.username,
+            &conn_args.hostname,
+            conn_args.private_key,
+            conn_args.password,
+            conn_args.port,
+        )
     }
 }
 

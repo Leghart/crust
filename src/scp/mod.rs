@@ -14,6 +14,7 @@ use crate::machine::local::LocalMachine;
 use crate::machine::{Machine, MachineType};
 
 pub mod parser;
+pub mod threads;
 
 pub const BUF_SIZE: usize = 1024 * 10;
 

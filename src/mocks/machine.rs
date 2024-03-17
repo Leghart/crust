@@ -14,6 +14,9 @@ impl Machine for MockMachine {
     fn get_id(&self) -> &MachineID {
         &self.id
     }
+    fn get_ssh(&self) -> Option<crate::connection::SshConnection> {
+        None
+    }
 
     fn get_session(&self) -> Option<ssh2::Session> {
         None

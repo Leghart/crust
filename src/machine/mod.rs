@@ -8,6 +8,7 @@ use ssh2::Session;
 pub mod local;
 pub mod remote;
 
+use crate::connection::SshConnection;
 use crate::error::CrustError;
 use crate::exec::Exec;
 use crate::interfaces::tmpdir::TemporaryDirectory;
@@ -26,6 +27,8 @@ pub trait Machine: TemporaryDirectory + Exec + Scp + Display {
 
     /// Gets a private ID value.
     fn get_id(&self) -> &MachineID;
+
+    fn get_ssh(&self) -> Option<SshConnection>;
 
     /// Required to maintain a common interface.
     fn connect(&mut self) -> Result<(), CrustError>;

@@ -72,6 +72,10 @@ impl Machine for LocalMachine {
         MachineType::LocalMachine
     }
 
+    fn get_ssh(&self) -> Option<crate::connection::SshConnection> {
+        None
+    }
+
     #[inline(always)]
     fn get_session(&self) -> Option<ssh2::Session> {
         None
