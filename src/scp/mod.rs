@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::fs::File;
 use std::io::Read;
 use std::io::Write;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::rc::Rc;
 
 use ssh2::Channel;
@@ -29,6 +29,7 @@ pub fn scp(
     path_from: PathBuf,
     path_to: PathBuf,
     progress: bool,
+    threads: Option<u8>,
 ) -> Result<CrustResult, CrustError> {
     let mut machine_from = _machine_from.borrow_mut();
     let mut machine_to = _machine_to.borrow_mut();
@@ -45,12 +46,12 @@ pub fn scp(
         (MachineType::LocalMachine, MachineType::RemoteMachine) => {
             log::trace!("Run `upload` from {} to {}", machine_from, machine_to);
             let ssh = machine_to.get_ssh().unwrap();
-            upload(ssh, &path_from, &path_to, progress)
+            upload(ssh, &path_from, &path_to, progress, threads)
         }
         (MachineType::RemoteMachine, MachineType::LocalMachine) => {
             log::trace!("Run `download` from {} to {}", machine_to, machine_from);
             let ssh = machine_from.get_ssh().unwrap();
-            download(ssh, &path_from, &path_to, progress)
+            download(ssh, &path_from, &path_to, progress, threads)
         }
         (MachineType::RemoteMachine, MachineType::RemoteMachine) => {
             let mut local: Box<dyn Machine> = Box::<LocalMachine>::default();
@@ -59,11 +60,11 @@ pub fn scp(
 
             log::trace!("Run `download` from {} to {}", machine_from, local);
             let ssh_from = machine_from.get_ssh().unwrap();
-            download(ssh_from, &path_from, &file_path, progress)?;
+            download(ssh_from, &path_from, &file_path, progress, threads)?;
 
             log::trace!("Run `upload` from {} to {}", local, machine_to);
             let ssh_to = machine_to.get_ssh().unwrap();
-            upload(ssh_to, &file_path, &path_to, progress)?;
+            upload(ssh_to, &file_path, &path_to, progress, threads)?;
 
             Ok(CrustResult::default())
         }

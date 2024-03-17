@@ -55,6 +55,11 @@ pub struct ScpArgs {
     #[clap(long, default_value = "false")]
     /// Show progress bar
     pub progress: bool,
+
+    #[clap(long, short)]
+    /// Number of threads to copying data - should be used for several
+    /// quite large files (for many light files this may cause slowdown)
+    pub threads: Option<u8>,
 }
 
 impl Validation for ScpArgs {

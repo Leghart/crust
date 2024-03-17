@@ -13,12 +13,12 @@ use crate::interfaces::response::CrustResult;
 use crate::scp::{copy_data, TransferFile};
 
 // TODO!: fix progress bar
-// TODO!: set max threads number
 pub fn upload(
     mut ssh: SshConnection,
     from: &Path,
     to: &Path,
     progress: bool,
+    threads: Option<u8>,
 ) -> Result<CrustResult, CrustError> {
     let meta = std::fs::metadata(from)?;
 
@@ -42,33 +42,51 @@ pub fn upload(
             Err(_) => sftp.mkdir(to, 0o755)?,
         };
 
-        let threads: Vec<_> = std::fs::read_dir(from)?
-            .into_iter()
-            .map(|path| {
-                let ssh = ssh.clone();
-                let to = PathBuf::from(&to);
-                thread::spawn(move || {
-                    let new_path_from = path.unwrap();
-                    let new_path_to =
-                        Path::new(&to).join(new_path_from.path().file_name().unwrap());
-                    upload(ssh.clone(), &new_path_from.path(), &new_path_to, progress)
-                })
-            })
-            .collect();
-
-        for thread in threads {
-            if thread.join().is_err() {
-                return Err(CrustError {
-                    code: ExitCode::Internal,
-                    message: "Thread error".to_string(),
-                });
+        match threads {
+            None => {
+                for path in std::fs::read_dir(from)? {
+                    let new_path_from = path?;
+                    let new_path_to = Path::new(to).join(new_path_from.path().file_name().unwrap());
+                    upload(
+                        ssh.clone(),
+                        &new_path_from.path(),
+                        &new_path_to,
+                        progress,
+                        threads,
+                    )?;
+                }
             }
-        }
-        // for path in std::fs::read_dir(from)? {
-        //     let new_path_from = path?;
-        //     let new_path_to = Path::new(to).join(new_path_from.path().file_name().unwrap());
-        //     upload(sess.clone(), &new_path_from.path(), &new_path_to, progress)?;
-        // }
+            Some(_t) => {
+                // TODO!: add semaphore for max threads numer
+                let handles: Vec<_> = std::fs::read_dir(from)?
+                    .map(|path| {
+                        let ssh = ssh.clone();
+                        let to = PathBuf::from(&to);
+                        thread::spawn(move || {
+                            let new_path_from = path.unwrap();
+                            let new_path_to =
+                                Path::new(&to).join(new_path_from.path().file_name().unwrap());
+                            upload(
+                                ssh.clone(),
+                                &new_path_from.path(),
+                                &new_path_to,
+                                progress,
+                                threads,
+                            )
+                        })
+                    })
+                    .collect();
+
+                for thread in handles {
+                    if thread.join().is_err() {
+                        return Err(CrustError {
+                            code: ExitCode::Internal,
+                            message: "Thread error".to_string(),
+                        });
+                    }
+                }
+            }
+        };
     } else {
         return Err(CrustError {
             code: ExitCode::Local,

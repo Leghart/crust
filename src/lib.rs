@@ -145,6 +145,7 @@ fn single_run(
                 PathBuf::from(&scp_args.src.path_from),
                 PathBuf::from(&scp_args.dst.path_to),
                 scp_args.progress,
+                scp_args.threads,
             )?
         }
     };

@@ -17,6 +17,7 @@ pub fn download(
     from: &Path,
     to: &Path,
     progress: bool,
+    threads: Option<u8>,
 ) -> Result<CrustResult, CrustError> {
     if !ssh.is_connected() {
         ssh.connect()?;
@@ -45,38 +46,51 @@ pub fn download(
                     false => std::fs::create_dir(to),
                 }?;
 
-                let threads: Vec<_> = sftp
-                    .readdir(from)?
-                    .into_iter()
-                    .map(|(path, _)| {
-                        let ssh = ssh.clone();
-                        let to = PathBuf::from(&to);
-                        thread::spawn(move || {
-                            let new_path_from = path;
-                            let new_path_to =
-                                Path::new(&to).join(new_path_from.file_name().unwrap());
-                            download(ssh.clone(), &new_path_from, &new_path_to, progress)
-                        })
-                    })
-                    .collect();
-
-                for thread in threads {
-                    if thread.join().is_err() {
-                        return Err(CrustError {
-                            code: ExitCode::Internal,
-                            message: "Thread error".to_string(),
-                        });
+                match threads {
+                    None => {
+                        for (path, _) in sftp.readdir(from)? {
+                            download(
+                                ssh.clone(),
+                                &path,
+                                &Path::new(to).join(path.file_name().unwrap()),
+                                progress,
+                                threads,
+                            )?;
+                        }
                     }
-                }
+                    Some(_t) => {
+                        // TODO!: add semaphore for max threads numer
+                        let handles: Vec<_> = sftp
+                            .readdir(from)?
+                            .into_iter()
+                            .map(|(path, _)| {
+                                let ssh = ssh.clone();
+                                let to = PathBuf::from(&to);
+                                thread::spawn(move || {
+                                    let new_path_from = path;
+                                    let new_path_to =
+                                        Path::new(&to).join(new_path_from.file_name().unwrap());
+                                    download(
+                                        ssh.clone(),
+                                        &new_path_from,
+                                        &new_path_to,
+                                        progress,
+                                        threads,
+                                    )
+                                })
+                            })
+                            .collect();
 
-                // for (path, _) in sftp.readdir(from)? {
-                //     download(
-                //         ssh.clone(),
-                //         &path,
-                //         &Path::new(to).join(path.file_name().unwrap()),
-                //         progress,
-                //     )?;
-                // }
+                        for thread in handles {
+                            if thread.join().is_err() {
+                                return Err(CrustError {
+                                    code: ExitCode::Internal,
+                                    message: "Thread error".to_string(),
+                                });
+                            }
+                        }
+                    }
+                };
             } else {
                 return Err(CrustError {
                     code: ExitCode::Remote,
