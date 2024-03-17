@@ -12,7 +12,6 @@ use crate::error::{CrustError, ExitCode};
 use crate::exec::Exec;
 use crate::interfaces::{response::CrustResult, tmpdir::TemporaryDirectory};
 use crate::machine::{Machine, MachineID, MachineType};
-use crate::scp::Scp;
 
 /// Definition of LocalMachine with private fields.
 /// - id: machine id for MachinesManager
@@ -199,13 +198,6 @@ impl Exec for LocalMachine {
         };
 
         Ok(CrustResult::default())
-    }
-}
-
-/// Add 'scp' method for LocalMachine
-impl Scp for LocalMachine {
-    fn machine_type(&self) -> MachineType {
-        self.mtype()
     }
 }
 

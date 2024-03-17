@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use crate::error::CrustError;
 use crate::interfaces::response::CrustResult;
 use crate::machine::{MachineID, MachineType};
-use crate::{exec::Exec, interfaces::tmpdir::TemporaryDirectory, machine::Machine, scp::Scp};
+use crate::{exec::Exec, interfaces::tmpdir::TemporaryDirectory, machine::Machine};
 
 pub struct MockMachine {
     pub id: MachineID,
@@ -41,12 +41,6 @@ impl Exec for MockMachine {
 
     fn exec_rt(&self, _cmd: &str, _merge_pipes: bool) -> Result<CrustResult, CrustError> {
         Ok(CrustResult::default())
-    }
-}
-
-impl Scp for MockMachine {
-    fn machine_type(&self) -> MachineType {
-        self.mtype()
     }
 }
 

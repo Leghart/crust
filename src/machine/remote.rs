@@ -11,7 +11,6 @@ use crate::exec::Exec;
 use crate::interfaces::response::CrustResult;
 use crate::interfaces::tmpdir::TemporaryDirectory;
 use crate::machine::{Machine, MachineID, MachineType};
-use crate::scp::Scp;
 
 /// Definition of RemoteMachine with private fields.
 /// - id: machine id for MachinesManager
@@ -208,13 +207,6 @@ impl Exec for RemoteMachine {
             self.ssh.borrow_mut().connect()?;
         }
         self.ssh.borrow().execute_rt(cmd, merge_pipes)
-    }
-}
-
-/// Add 'scp' method for RemoteMachine
-impl Scp for RemoteMachine {
-    fn machine_type(&self) -> MachineType {
-        self.mtype()
     }
 }
 
