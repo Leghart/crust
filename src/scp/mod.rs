@@ -5,10 +5,11 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::rc::Rc;
 
+use indicatif::{MultiProgress, ProgressBar};
 use ssh2::Channel;
 
 use crate::error::{CrustError, ExitCode};
-use crate::interfaces::progress_bar::ProgressBar;
+// use crate::interfaces::progress_bar::ProgressBar;
 use crate::interfaces::response::CrustResult;
 use crate::machine::local::LocalMachine;
 use crate::machine::{Machine, MachineType};
@@ -42,16 +43,21 @@ pub fn scp(
         machine_from.connect()?;
     }
 
+    let multi_bars: Option<MultiProgress> = match progress {
+        false => None,
+        true => Some(MultiProgress::new()),
+    };
+
     match (machine_from.mtype(), machine_to.mtype()) {
         (MachineType::LocalMachine, MachineType::RemoteMachine) => {
             log::trace!("Run `upload` from {} to {}", machine_from, machine_to);
             let ssh = machine_to.get_ssh().unwrap();
-            upload(ssh, &path_from, &path_to, progress, threads)
+            upload(ssh, &path_from, &path_to, multi_bars, threads)
         }
         (MachineType::RemoteMachine, MachineType::LocalMachine) => {
             log::trace!("Run `download` from {} to {}", machine_to, machine_from);
             let ssh = machine_from.get_ssh().unwrap();
-            download(ssh, &path_from, &path_to, progress, threads)
+            download(ssh, &path_from, &path_to, multi_bars, threads)
         }
         (MachineType::RemoteMachine, MachineType::RemoteMachine) => {
             let mut local: Box<dyn Machine> = Box::<LocalMachine>::default();
@@ -60,11 +66,17 @@ pub fn scp(
 
             log::trace!("Run `download` from {} to {}", machine_from, local);
             let ssh_from = machine_from.get_ssh().unwrap();
-            download(ssh_from, &path_from, &file_path, progress, threads)?;
+            download(
+                ssh_from,
+                &path_from,
+                &file_path,
+                multi_bars.clone(),
+                threads,
+            )?;
 
             log::trace!("Run `upload` from {} to {}", local, machine_to);
             let ssh_to = machine_to.get_ssh().unwrap();
-            upload(ssh_to, &file_path, &path_to, progress, threads)?;
+            upload(ssh_to, &file_path, &path_to, multi_bars, threads)?;
 
             Ok(CrustResult::default())
         }
@@ -97,7 +109,7 @@ fn copy_data(
             .expect("Failed to write to file");
 
         if let Some(ref pb) = progress_bar {
-            pb.inc(len);
+            pb.inc(len as u64);
         }
     }
 

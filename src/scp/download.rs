@@ -1,12 +1,13 @@
 use std::path::{Path, PathBuf};
 use std::thread;
 
+use indicatif::{MultiProgress, ProgressBar};
 use ssh2::Session;
 
 use crate::connection::SshConnection;
 use crate::connection::SSH;
 use crate::error::{CrustError, ExitCode};
-use crate::interfaces::progress_bar::ProgressBar;
+use crate::interfaces::progress_bar::set_custom_style;
 use crate::interfaces::response::CrustResult;
 use crate::scp::{copy_data, TransferFile};
 
@@ -16,7 +17,7 @@ pub fn download(
     mut ssh: SshConnection,
     from: &Path,
     to: &Path,
-    progress: bool,
+    multibars: Option<MultiProgress>,
     threads: Option<u8>,
 ) -> Result<CrustResult, CrustError> {
     if !ssh.is_connected() {
@@ -34,7 +35,7 @@ pub fn download(
         }
         Ok(metadata) => {
             if metadata.is_file() {
-                return _download_file(session, from, to, progress);
+                return _download_file(session, from, to, multibars);
             } else if metadata.is_dir() {
                 match to.exists() {
                     true => {
@@ -53,19 +54,21 @@ pub fn download(
                                 ssh.clone(),
                                 &path,
                                 &Path::new(to).join(path.file_name().unwrap()),
-                                progress,
+                                multibars.clone(),
                                 threads,
                             )?;
                         }
                     }
                     Some(_t) => {
-                        // TODO?: add semaphore for max threads numer
+                        // TODO?: add semaphore for max threads
                         let handles: Vec<_> = sftp
                             .readdir(from)?
                             .into_iter()
                             .map(|(path, _)| {
                                 let ssh = ssh.clone();
                                 let to = PathBuf::from(&to);
+                                let multi = multibars.clone();
+
                                 thread::spawn(move || {
                                     let new_path_from = path;
                                     let new_path_to =
@@ -74,7 +77,7 @@ pub fn download(
                                         ssh.clone(),
                                         &new_path_from,
                                         &new_path_to,
-                                        progress,
+                                        multi,
                                         threads,
                                     )
                                 })
@@ -108,7 +111,7 @@ fn _download_file(
     session: Session,
     from: &Path,
     to: &Path,
-    progress: bool,
+    multibars: Option<MultiProgress>,
 ) -> Result<CrustResult, CrustError> {
     let (channel, stat) = session.scp_recv(from)?;
     let file_to_read = TransferFile::Remote(channel);
@@ -117,9 +120,13 @@ fn _download_file(
     let file_to_write =
         TransferFile::Local(std::fs::File::create(to).expect("Failed to create file"));
 
-    let progress_bar: Option<ProgressBar> = match progress {
-        true => Some(ProgressBar::new(size)),
-        false => None,
+    let progress_bar = match multibars {
+        Some(m) => {
+            let pb = m.add(ProgressBar::new(size));
+            set_custom_style(&pb);
+            Some(pb)
+        }
+        None => None,
     };
 
     copy_data(file_to_read, file_to_write, progress_bar);

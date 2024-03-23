@@ -3,12 +3,13 @@ use std::fs::File;
 use std::path::{Path, PathBuf};
 use std::thread;
 
+use indicatif::{MultiProgress, ProgressBar};
 use ssh2::Session;
 
 use crate::connection::SshConnection;
 use crate::connection::SSH;
 use crate::error::{CrustError, ExitCode};
-use crate::interfaces::progress_bar::ProgressBar;
+use crate::interfaces::progress_bar::set_custom_style;
 use crate::interfaces::response::CrustResult;
 use crate::scp::{copy_data, TransferFile};
 
@@ -18,7 +19,7 @@ pub fn upload(
     mut ssh: SshConnection,
     from: &Path,
     to: &Path,
-    progress: bool,
+    multibars: Option<MultiProgress>,
     threads: Option<u8>,
 ) -> Result<CrustResult, CrustError> {
     let meta = std::fs::metadata(from)?;
@@ -29,7 +30,7 @@ pub fn upload(
     let session = ssh.session();
 
     if meta.is_file() {
-        return _upload_file(session, from, to, progress);
+        return _upload_file(session, from, to, multibars);
     } else if meta.is_dir() {
         let sftp = session.sftp()?;
 
@@ -52,17 +53,18 @@ pub fn upload(
                         ssh.clone(),
                         &new_path_from.path(),
                         &new_path_to,
-                        progress,
+                        multibars.clone(),
                         threads,
                     )?;
                 }
             }
             Some(_t) => {
-                // TODO?: add semaphore for max threads numer
+                // TODO?: add semaphore for max threads
                 let handles: Vec<_> = std::fs::read_dir(from)?
                     .map(|path| {
                         let ssh = ssh.clone();
                         let to = PathBuf::from(&to);
+                        let multi = multibars.clone();
                         thread::spawn(move || {
                             let new_path_from = path.unwrap();
                             let new_path_to =
@@ -71,7 +73,7 @@ pub fn upload(
                                 ssh.clone(),
                                 &new_path_from.path(),
                                 &new_path_to,
-                                progress,
+                                multi,
                                 threads,
                             )
                         })
@@ -101,7 +103,7 @@ fn _upload_file(
     sess: Session,
     from: &Path,
     to: &Path,
-    progress: bool,
+    multibars: Option<MultiProgress>,
 ) -> Result<CrustResult, CrustError> {
     let size: u64 = match std::fs::metadata(from) {
         Ok(metadata) => metadata.len(),
@@ -117,12 +119,15 @@ fn _upload_file(
 
     let file_to_read = TransferFile::Local(File::open(from).expect("Can not open file on local"));
 
-    let progress_bar: Option<ProgressBar> = match progress {
-        true => Some(ProgressBar::new(size)),
-        false => None,
+    let progress_bar = match multibars {
+        Some(m) => {
+            let pb = m.add(ProgressBar::new(size));
+            set_custom_style(&pb);
+            Some(pb)
+        }
+        None => None,
     };
 
     copy_data(file_to_read, file_to_write, progress_bar);
-
     Ok(CrustResult::default())
 }
