@@ -3,7 +3,7 @@ use std::path::PathBuf;
 use crate::error::CrustError;
 use crate::interfaces::response::CrustResult;
 use crate::machine::{MachineID, MachineType};
-use crate::{exec::Exec, interfaces::tmpdir::TemporaryDirectory, machine::Machine, scp::Scp};
+use crate::{exec::Exec, interfaces::tmpdir::TemporaryDirectory, machine::Machine};
 
 pub struct MockMachine {
     pub id: MachineID,
@@ -13,6 +13,9 @@ pub struct MockMachine {
 impl Machine for MockMachine {
     fn get_id(&self) -> &MachineID {
         &self.id
+    }
+    fn get_ssh(&self) -> Option<crate::connection::SshConnection> {
+        None
     }
 
     fn get_session(&self) -> Option<ssh2::Session> {
@@ -26,6 +29,10 @@ impl Machine for MockMachine {
     fn connect(&mut self) -> Result<(), CrustError> {
         Ok(())
     }
+
+    fn is_connected(&self) -> bool {
+        true
+    }
 }
 impl Exec for MockMachine {
     fn exec(&self, _: &str) -> Result<CrustResult, CrustError> {
@@ -34,12 +41,6 @@ impl Exec for MockMachine {
 
     fn exec_rt(&self, _cmd: &str, _merge_pipes: bool) -> Result<CrustResult, CrustError> {
         Ok(CrustResult::default())
-    }
-}
-
-impl Scp for MockMachine {
-    fn get_machine(&self) -> MachineType {
-        self.mtype()
     }
 }
 

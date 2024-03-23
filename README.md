@@ -1,4 +1,6 @@
 # crust
+![GitHub CI MSRV](https://github.com/Leghart/crust/actions/workflows/msrv.yml/badge.svg)
+![Security audit](https://github.com/Leghart/crust/actions/workflows/audit.yml/badge.svg)
 
 ## Run Locally
 
@@ -73,5 +75,5 @@ sudo ./podman/manage_podman.py --help
 ```
 ## Authors
 
-- [@Leghart](https://gitlab.com/Leghart)
-- [@WiktorNowak](https://gitlab.com/WiktorNowak)
+- [@Leghart](https://github.com/Leghart)
+- [@WiktorNowak](https://github.com/WiktorNowak98)

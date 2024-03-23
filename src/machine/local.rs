@@ -12,7 +12,6 @@ use crate::error::{CrustError, ExitCode};
 use crate::exec::Exec;
 use crate::interfaces::{response::CrustResult, tmpdir::TemporaryDirectory};
 use crate::machine::{Machine, MachineID, MachineType};
-use crate::scp::Scp;
 
 /// Definition of LocalMachine with private fields.
 /// - id: machine id for MachinesManager
@@ -72,6 +71,10 @@ impl Machine for LocalMachine {
         MachineType::LocalMachine
     }
 
+    fn get_ssh(&self) -> Option<crate::connection::SshConnection> {
+        None
+    }
+
     #[inline(always)]
     fn get_session(&self) -> Option<ssh2::Session> {
         None
@@ -84,6 +87,11 @@ impl Machine for LocalMachine {
     #[inline(always)]
     fn connect(&mut self) -> Result<(), CrustError> {
         Ok(())
+    }
+
+    #[inline(always)]
+    fn is_connected(&self) -> bool {
+        true
     }
 }
 
@@ -190,13 +198,6 @@ impl Exec for LocalMachine {
         };
 
         Ok(CrustResult::default())
-    }
-}
-
-/// Add 'scp' method for LocalMachine
-impl Scp for LocalMachine {
-    fn get_machine(&self) -> MachineType {
-        self.mtype()
     }
 }
 

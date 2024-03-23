@@ -8,14 +8,14 @@ use ssh2::Session;
 pub mod local;
 pub mod remote;
 
+use crate::connection::SshConnection;
 use crate::error::CrustError;
 use crate::exec::Exec;
 use crate::interfaces::tmpdir::TemporaryDirectory;
-use crate::scp::Scp;
 
 /// Set of common methods for local and remote machines. It could
 /// be seen as abstract class, which must be overriden by childs.
-pub trait Machine: TemporaryDirectory + Exec + Scp + Display {
+pub trait Machine: TemporaryDirectory + Exec + Display {
     /// Defines a type of machine.
     /// Possible choices are: LocalMachine, RemoteMachine, AbstractMachine
     fn mtype(&self) -> MachineType;
@@ -27,8 +27,14 @@ pub trait Machine: TemporaryDirectory + Exec + Scp + Display {
     /// Gets a private ID value.
     fn get_id(&self) -> &MachineID;
 
+    /// Gets an existing SSH connetion (if exists)
+    fn get_ssh(&self) -> Option<SshConnection>;
+
     /// Required to maintain a common interface.
     fn connect(&mut self) -> Result<(), CrustError>;
+
+    /// Checks whether machine is connected (connection is alive).
+    fn is_connected(&self) -> bool;
 }
 
 /// Hashable enum represents a machine ID. There are two options to make

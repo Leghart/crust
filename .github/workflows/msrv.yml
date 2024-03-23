@@ -95,3 +95,11 @@ jobs:
         with:
           command: clippy
           args: -- -D warnings
+            
+  badge:
+    name: Run badges
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Badge Action
+      uses: emibcn/badge-action@v2.0.3            

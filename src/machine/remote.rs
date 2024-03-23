@@ -11,7 +11,6 @@ use crate::exec::Exec;
 use crate::interfaces::response::CrustResult;
 use crate::interfaces::tmpdir::TemporaryDirectory;
 use crate::machine::{Machine, MachineID, MachineType};
-use crate::scp::Scp;
 
 /// Definition of RemoteMachine with private fields.
 /// - id: machine id for MachinesManager
@@ -94,11 +93,6 @@ impl RemoteMachine {
         manager.get_machine(&id).cloned()
     }
 
-    /// Getter for ssh config.
-    pub fn get_ssh(&self) -> &RefCell<SshConnection> {
-        &self.ssh
-    }
-
     /// Private method to generate id for remote machine.
     fn generate_default_id(user: &str, host: &str, port: u16) -> MachineID {
         MachineID::Default(
@@ -106,6 +100,10 @@ impl RemoteMachine {
             Some(String::from(host)),
             Some(port),
         )
+    }
+
+    fn get_internal_ssh(&self) -> &RefCell<SshConnection> {
+        &self.ssh
     }
 
     /// Private method to generate id for remote machine.
@@ -122,7 +120,11 @@ impl Machine for RemoteMachine {
     }
 
     fn get_session(&self) -> Option<ssh2::Session> {
-        Some(self.ssh.borrow().session().clone())
+        Some(self.get_internal_ssh().borrow().session().clone())
+    }
+
+    fn get_ssh(&self) -> Option<SshConnection> {
+        Some(self.get_internal_ssh().borrow().clone())
     }
 
     fn get_id(&self) -> &MachineID {
@@ -130,7 +132,11 @@ impl Machine for RemoteMachine {
     }
 
     fn connect(&mut self) -> Result<(), CrustError> {
-        self.ssh.borrow_mut().connect()
+        self.get_internal_ssh().borrow_mut().connect()
+    }
+
+    fn is_connected(&self) -> bool {
+        self.get_internal_ssh().borrow().is_connected()
     }
 }
 
@@ -204,13 +210,6 @@ impl Exec for RemoteMachine {
     }
 }
 
-/// Add 'scp' method for RemoteMachine
-impl Scp for RemoteMachine {
-    fn get_machine(&self) -> MachineType {
-        self.mtype()
-    }
-}
-
 /// Destructur implemtation for cleanup temporary directory when
 /// struct leaves scope.
 impl Drop for RemoteMachine {
@@ -265,6 +264,7 @@ mod tests {
         assert!(r.is_ok());
 
         let mut cloned = machine.clone();
+        let _ = cloned.connect();
         let path = cloned.create_tmpdir().unwrap();
 
         std::mem::drop(cloned);
@@ -333,8 +333,8 @@ mod tests {
 
         assert_eq!(machine.get_id(), cloned.get_id());
         assert!(!cloned.can_be_removed());
-        let ssh_original = machine.get_ssh().borrow();
-        let ssh_cloned = cloned.get_ssh().borrow();
+        let ssh_original = machine.get_ssh().unwrap();
+        let ssh_cloned = cloned.get_ssh().unwrap();
         assert_eq!(ssh_original.to_string(), ssh_cloned.to_string())
     }
 
